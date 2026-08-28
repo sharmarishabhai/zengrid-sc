@@ -149,6 +149,13 @@ async function refreshAccessToken() {
   }
 }
 
+async function uploadFile(file, folder = "zengrid") {
+  const form = new FormData();
+  form.append("file", file);
+  form.append("folder", folder);
+  return api("/media/single", { method: "POST", body: form });
+}
+
 async function loadData() {
   state.loading = true;
   render();
@@ -523,6 +530,7 @@ function openLeadForm() {
         <div class="field"><label>Assigned To (SC name)</label><input id="l_assignedto"/></div>
         <div class="field"><label>Meeting Date</label><input id="l_meetdate" type="date"/></div>
         <div class="field"><label>Meeting Time</label><input id="l_meettime" type="time"/></div>
+        <div class="field" style="grid-column:1/-1"><label>Attachment / Photo / PDF</label><input id="l_file" type="file" accept="image/*,.pdf" /></div>
         <div class="field"><label>Notes</label><textarea id="l_note"></textarea></div>
       </div>
       <div class="toolbar" style="margin-top:16px;justify-content:flex-end">
@@ -539,6 +547,18 @@ function openLeadForm() {
   document.body.append(overlay);
   overlay.querySelector("#closeModal").onclick = () => overlay.remove();
   overlay.querySelector("#saveLeadBtn").onclick = async () => {
+    let attachmentText = "";
+    const file = overlay.querySelector("#l_file").files?.[0];
+    if (file) {
+      try {
+        toast("Uploading attachment...");
+        const uploaded = await uploadFile(file, "zengrid/leads");
+        attachmentText = `\nAttachment: ${uploaded.file.url}`;
+      } catch (e) {
+        toast(e.message, "error");
+        return;
+      }
+    }
     const body = {
       customerName: overlay.querySelector("#l_name").value,
       phone: overlay.querySelector("#l_phone").value,
@@ -551,7 +571,7 @@ function openLeadForm() {
       assignedTo: overlay.querySelector("#l_assignedto").value,
       meetingDate: overlay.querySelector("#l_meetdate").value,
       meetingTime: overlay.querySelector("#l_meettime").value,
-      note: overlay.querySelector("#l_note").value,
+      note: `${overlay.querySelector("#l_note").value}${attachmentText}`.trim(),
     };
     try {
       await api("/leads", { method: "POST", body: JSON.stringify(body) });
