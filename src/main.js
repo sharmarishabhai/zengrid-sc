@@ -9,6 +9,9 @@ const state = {
   leads: [],
   followUps: [],
   meetings: [],
+  quotes: [],
+  payments: [],
+  gst: [],
   summary: null,
   view: "leads",
   loading: false,
@@ -156,16 +159,61 @@ async function uploadFile(file, folder = "zengrid") {
   return api("/media/single", { method: "POST", body: form });
 }
 
+function printRecord(title, record) {
+  const w = window.open("", "_blank", "width=900,height=1100");
+  const amount = record.netEffectivePrice ?? record.paidAmount ?? record.taxableAmount ?? 0;
+  w.document.write(`
+    <html>
+      <head>
+        <title>${title}</title>
+        <style>
+          body{font-family:Arial,sans-serif;margin:0;padding:24px;background:#f6f1e8;color:#0f172a}
+          .sheet{max-width:860px;margin:0 auto;background:#fff;border:1px solid #dbe1ea;border-radius:18px;padding:24px}
+          .head{display:flex;justify-content:space-between;gap:20px;border-bottom:2px solid #1f3a8a;padding-bottom:16px;margin-bottom:18px}
+          .brand{font-size:22px;font-weight:800;color:#1f3a8a}
+          .sub{color:#64748b;font-size:13px}
+          .row{display:flex;justify-content:space-between;gap:12px;padding:8px 0;border-bottom:1px dashed #e5e7eb}
+          .label{color:#64748b}
+          .value{font-weight:700}
+          .amount{font-size:24px;font-weight:800;color:#6b4fd3}
+          @media print{body{background:#fff}.sheet{border:none;padding:0}}
+        </style>
+      </head>
+      <body>
+        <div class="sheet">
+          <div class="head">
+            <div>
+              <div class="brand">ZenGrid ${title}</div>
+              <div class="sub">${record.leadName || record.customerName || "Lead Record"}</div>
+            </div>
+            <div class="sub">${new Date().toLocaleString()}</div>
+          </div>
+          <div class="row"><div class="label">Record No</div><div class="value">${record.quoteNo || record.paymentNo || record.invoiceNo || record._id || "—"}</div></div>
+          <div class="row"><div class="label">Lead</div><div class="value">${record.leadName || record.customerName || "—"}</div></div>
+          <div class="row"><div class="label">Mobile</div><div class="value">${record.phone || record.mobile || "—"}</div></div>
+          <div class="row"><div class="label">Amount</div><div class="amount">₹${Number(amount || 0).toLocaleString("en-IN")}</div></div>
+          <div class="row"><div class="label">Notes</div><div class="value">${record.note || "—"}</div></div>
+        </div>
+        <script>window.print();</script>
+      </body>
+    </html>
+  `);
+  w.document.close();
+}
+
 async function loadData() {
   state.loading = true;
   render();
   try {
-    const [me, summary, leads, followUps, meetings, audit] = await Promise.all([
+    const [me, summary, leads, followUps, meetings, quotes, payments, gst, audit] = await Promise.all([
       api("/auth/me"),
       api("/activities/summary"),
       api("/leads/mine"),
       api("/followups"),
       api("/activities/meetings"),
+      api("/activities/quotes"),
+      api("/activities/payments"),
+      api("/activities/gst"),
       api("/audits/summary"),
     ]);
     state.user = me.user;
@@ -173,6 +221,9 @@ async function loadData() {
     state.leads = leads.leads || [];
     state.followUps = followUps.followUps || [];
     state.meetings = meetings.meetings || [];
+    state.quotes = quotes.quotes || [];
+    state.payments = payments.payments || [];
+    state.gst = gst.invoices || [];
   } catch (error) {
     toast(error.message, "error");
   } finally {
@@ -352,6 +403,8 @@ function leadDetail(lead) {
           <p>${lead.phone} • ${lead.area || "—"} ${lead.locality ? "• " + lead.locality : ""}</p>
         </div>
         <div class="toolbar">
+          <button class="btn btn-soft" id="editLeadBtn">Edit Lead</button>
+          <button class="btn btn-danger" id="deleteLeadBtn">Delete Lead</button>
           <button class="btn btn-soft" id="addFollowBtn">Add Follow Up</button>
           <button class="btn btn-primary" id="addMeetBtn">Add Meeting</button>
         </div>
@@ -376,6 +429,20 @@ function leadDetail(lead) {
           <div class="grid" style="gap:10px">
             ${meetings.map((m) => `<div class="card" style="padding:12px"><strong>${m.meetingDate}</strong><div class="muted">${m.note || "—"}</div></div>`).join("") || "<div class='muted'>No meeting records.</div>"}
           </div>
+        </div>
+      </div>
+      <div class="grid three" style="margin-top:14px">
+        <div class="card">
+          <h3 style="margin-top:0">Quotes</h3>
+          ${state.quotes.filter((q) => String(q.leadId) === String(lead._id)).map((q) => `<div class="card" style="padding:12px;margin-top:10px"><strong>${q.quoteNo || "Quote"}</strong><div class="muted">₹${Number(q.netEffectivePrice || 0).toLocaleString("en-IN")}</div><button class="btn btn-soft" data-print-quote="${q._id}" style="margin-top:10px">Print Quote</button></div>`).join("") || "<div class='muted'>No quote records.</div>"}
+        </div>
+        <div class="card">
+          <h3 style="margin-top:0">Payments</h3>
+          ${state.payments.filter((p) => String(p.leadId) === String(lead._id)).map((p) => `<div class="card" style="padding:12px;margin-top:10px"><strong>${p.paymentNo || "Payment"}</strong><div class="muted">₹${Number(p.paidAmount || 0).toLocaleString("en-IN")}</div><button class="btn btn-soft" data-print-payment="${p._id}" style="margin-top:10px">Print Receipt</button></div>`).join("") || "<div class='muted'>No payment records.</div>"}
+        </div>
+        <div class="card">
+          <h3 style="margin-top:0">GST</h3>
+          ${state.gst.filter((g) => String(g.leadId) === String(lead._id)).map((g) => `<div class="card" style="padding:12px;margin-top:10px"><strong>${g.invoiceNo || "Invoice"}</strong><div class="muted">₹${Number(g.taxableAmount || 0).toLocaleString("en-IN")}</div><button class="btn btn-soft" data-print-gst="${g._id}" style="margin-top:10px">Print GST</button></div>`).join("") || "<div class='muted'>No GST records.</div>"}
         </div>
       </div>
     </div>
@@ -511,30 +578,31 @@ function render() {
   }
 }
 
-function openLeadForm() {
+function openLeadForm(lead = null) {
+  const isEdit = Boolean(lead);
   const overlay = h("div", { class: "login", id: "modal" }, `
     <div class="loginbox" style="width:min(920px,100%)">
       <div class="toolbar" style="justify-content:space-between">
-        <h2 style="margin:0">Add Lead</h2>
+        <h2 style="margin:0">${isEdit ? "Edit Lead" : "Add Lead"}</h2>
         <button class="btn btn-soft" id="closeModal">Close</button>
       </div>
       <div class="grid two" style="margin-top:16px">
-        <div class="field"><label>Customer Name</label><input id="l_name"/></div>
-        <div class="field"><label>Phone</label><input id="l_phone"/></div>
-        <div class="field"><label>Area</label><input id="l_area"/></div>
-        <div class="field"><label>Locality</label><input id="l_locality"/></div>
-        <div class="field"><label>Monthly Bill</label><input id="l_bill" type="number"/></div>
-        <div class="field"><label>Source</label><select id="l_source"><option>Website</option><option>Social Media</option><option>Field Visit</option><option>Import</option></select></div>
-        <div class="field"><label>Status</label><select id="l_status"><option>New Lead</option><option>Contacted</option><option>Interested</option><option>Follow Up</option><option>Not Interested</option><option>Won</option><option>Lost</option></select></div>
-        <div class="field"><label>Follow Up Date</label><input id="l_fu" type="date"/></div>
-        <div class="field"><label>Assigned To (SC name)</label><input id="l_assignedto"/></div>
-        <div class="field"><label>Meeting Date</label><input id="l_meetdate" type="date"/></div>
-        <div class="field"><label>Meeting Time</label><input id="l_meettime" type="time"/></div>
+        <div class="field"><label>Customer Name</label><input id="l_name" value="${lead?.customerName || ""}"/></div>
+        <div class="field"><label>Phone</label><input id="l_phone" value="${lead?.phone || ""}"/></div>
+        <div class="field"><label>Area</label><input id="l_area" value="${lead?.area || ""}"/></div>
+        <div class="field"><label>Locality</label><input id="l_locality" value="${lead?.locality || ""}"/></div>
+        <div class="field"><label>Monthly Bill</label><input id="l_bill" type="number" value="${lead?.monthlyBill || ""}"/></div>
+        <div class="field"><label>Source</label><select id="l_source"><option ${lead?.source === "Website" ? "selected" : ""}>Website</option><option ${lead?.source === "Social Media" ? "selected" : ""}>Social Media</option><option ${lead?.source === "Field Visit" ? "selected" : ""}>Field Visit</option><option ${lead?.source === "Import" ? "selected" : ""}>Import</option></select></div>
+        <div class="field"><label>Status</label><select id="l_status"><option ${lead?.leadStatus === "New Lead" ? "selected" : ""}>New Lead</option><option ${lead?.leadStatus === "Contacted" ? "selected" : ""}>Contacted</option><option ${lead?.leadStatus === "Interested" ? "selected" : ""}>Interested</option><option ${lead?.leadStatus === "Follow Up" ? "selected" : ""}>Follow Up</option><option ${lead?.leadStatus === "Not Interested" ? "selected" : ""}>Not Interested</option><option ${lead?.leadStatus === "Won" ? "selected" : ""}>Won</option><option ${lead?.leadStatus === "Lost" ? "selected" : ""}>Lost</option></select></div>
+        <div class="field"><label>Follow Up Date</label><input id="l_fu" type="date" value="${lead?.followUpDate || ""}"/></div>
+        <div class="field"><label>Assigned To (SC name)</label><input id="l_assignedto" value="${lead?.assignedTo || ""}"/></div>
+        <div class="field"><label>Meeting Date</label><input id="l_meetdate" type="date" value="${lead?.meetingDate || ""}"/></div>
+        <div class="field"><label>Meeting Time</label><input id="l_meettime" type="time" value="${lead?.meetingTime || ""}"/></div>
         <div class="field" style="grid-column:1/-1"><label>Attachment / Photo / PDF</label><input id="l_file" type="file" accept="image/*,.pdf" /></div>
-        <div class="field"><label>Notes</label><textarea id="l_note"></textarea></div>
+        <div class="field"><label>Notes</label><textarea id="l_note">${lead?.note || ""}</textarea></div>
       </div>
       <div class="toolbar" style="margin-top:16px;justify-content:flex-end">
-        <button class="btn btn-primary" id="saveLeadBtn">Save Lead</button>
+        <button class="btn btn-primary" id="saveLeadBtn">${isEdit ? "Update Lead" : "Save Lead"}</button>
       </div>
     </div>
   `);
@@ -574,9 +642,9 @@ function openLeadForm() {
       note: `${overlay.querySelector("#l_note").value}${attachmentText}`.trim(),
     };
     try {
-      await api("/leads", { method: "POST", body: JSON.stringify(body) });
+      await api(isEdit ? `/leads/${lead._id}` : "/leads", { method: isEdit ? "PATCH" : "POST", body: JSON.stringify(body) });
       overlay.remove();
-      toast("Lead saved", "success");
+      toast(isEdit ? "Lead updated" : "Lead saved", "success");
       loadData();
     } catch (e) {
       toast(e.message, "error");
@@ -585,9 +653,23 @@ function openLeadForm() {
 }
 
 function bindLeadDetailActions() {
+  const editLeadBtn = document.querySelector("#editLeadBtn");
+  const deleteLeadBtn = document.querySelector("#deleteLeadBtn");
   const addFollowBtn = document.querySelector("#addFollowBtn");
   const addMeetBtn = document.querySelector("#addMeetBtn");
   if (!addFollowBtn || !addMeetBtn) return;
+  if (editLeadBtn) {
+    editLeadBtn.onclick = () => openLeadForm(state.selectedLead);
+  }
+  if (deleteLeadBtn) {
+    deleteLeadBtn.onclick = async () => {
+      if (!confirm("Delete this lead and its follow-up records?")) return;
+      await api(`/leads/${state.selectedLead._id}`, { method: "DELETE" });
+      toast("Lead deleted", "success");
+      state.selectedLead = null;
+      loadData();
+    };
+  }
   addFollowBtn.onclick = async () => {
     const followUpDate = prompt("Follow-up date (YYYY-MM-DD):");
     if (!followUpDate) return;
@@ -605,6 +687,24 @@ function bindLeadDetailActions() {
     toast("Meeting added", "success");
     loadData();
   };
+  document.querySelectorAll("[data-print-quote]").forEach((btn) => {
+    btn.onclick = () => {
+      const quote = state.quotes.find((q) => String(q._id) === String(btn.dataset.printQuote));
+      if (quote) printRecord("Quote", quote);
+    };
+  });
+  document.querySelectorAll("[data-print-payment]").forEach((btn) => {
+    btn.onclick = () => {
+      const payment = state.payments.find((p) => String(p._id) === String(btn.dataset.printPayment));
+      if (payment) printRecord("Receipt", payment);
+    };
+  });
+  document.querySelectorAll("[data-print-gst]").forEach((btn) => {
+    btn.onclick = () => {
+      const gst = state.gst.find((g) => String(g._id) === String(btn.dataset.printGst));
+      if (gst) printRecord("GST Invoice", gst);
+    };
+  });
 }
 
 async function bootstrap() {
