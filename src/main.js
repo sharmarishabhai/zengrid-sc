@@ -1,4 +1,4 @@
-﻿const API_BASE = "http://localhost:9191/api";
+﻿const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:9191/api";
 const app = document.querySelector("#app");
 const statuses = ["New Lead", "Contacted", "Interested", "Follow Up", "Not Available", "Not Picking Call", "Rescheduled", "Not Interested", "Won", "Lost"];
 const outcomes = ["Not Available", "Not Picking Call", "Rescheduled", "Follow Up", "Won", "Lost"];
