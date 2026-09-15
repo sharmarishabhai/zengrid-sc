@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-label="ZenGrid SC">
+  <rect width="512" height="512" rx="112" fill="#4c118f"/>
+  <rect x="58" y="58" width="396" height="396" rx="86" fill="#0b0d14"/>
+  <path d="M282 80 144 274h90l-40 158 178-224H271z" fill="#f2c94c"/>
+  <path d="M118 376h276" stroke="#a8b79a" stroke-width="28" stroke-linecap="round"/>
+</svg>

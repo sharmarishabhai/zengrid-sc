@@ -92,10 +92,13 @@ async function loadData() {
   try {
     const dateQuery = state.view === "meetings" ? `?meetingDate=${encodeURIComponent(state.meetingDate)}` : "";
     const meetingQuery = state.view === "meetings" ? `?date=${encodeURIComponent(state.meetingDate)}` : "";
-    const calls = [api("/auth/me"), api("/activities/summary"), api(`/leads/mine${dateQuery}`), api(`/activities/meetings${meetingQuery}`), api("/followups")];
-    if (canManageCommercialDocs()) calls.push(api("/activities/quotes"), api("/activities/payments"));
+    const leadJoin = dateQuery ? `${dateQuery}&limit=500` : "?limit=500";
+    const meetingJoin = meetingQuery ? `${meetingQuery}&limit=500` : "?limit=500";
+    const calls = [api("/auth/me"), api("/activities/summary"), api(`/leads/mine${leadJoin}`), api(`/activities/meetings${meetingJoin}`), api("/followups")];
+    if (canManageCommercialDocs()) calls.push(api("/activities/quotes?limit=500"), api("/activities/payments?limit=500"));
     calls.push(api("/config"));
-    if (isLrm()) calls.push(api("/users/scs"), api("/activities/daily-reports"));
+    const loadLrmResources = state.user?.userType === "lrm" || state.user?.userType === "admin";
+    if (loadLrmResources) calls.push(api("/users/scs"), api("/activities/daily-reports"));
     const data = await Promise.all(calls);
     Object.assign(state, {
       user: data[0].user,
@@ -106,8 +109,8 @@ async function loadData() {
       quotes: canManageCommercialDocs() ? data[5].quotes || [] : [],
       payments: canManageCommercialDocs() ? data[6].payments || [] : [],
       configs: data[canManageCommercialDocs() ? 7 : 5].items || [],
-      scs: data[canManageCommercialDocs() ? 8 : 6]?.users || [],
-      reports: data[canManageCommercialDocs() ? 9 : 7]?.reports || [],
+      scs: loadLrmResources ? data[canManageCommercialDocs() ? 8 : 6]?.users || [] : [],
+      reports: loadLrmResources ? data[canManageCommercialDocs() ? 9 : 7]?.reports || [] : [],
     });
     localStorage.setItem("zg_user", JSON.stringify(state.user));
   } catch (e) {
@@ -418,3 +421,9 @@ function render() {
 }
 
 if (state.accessToken) loadData(); else renderLogin();
+
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("/sw.js").catch(() => {});
+  });
+}
