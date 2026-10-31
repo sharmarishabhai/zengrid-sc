@@ -1,4 +1,6 @@
-const API_BASE = "https://zengridpwa-backend.onrender.com/api";
+import { renderQuoteDocument } from "../../quote-template.js";
+
+const API_BASE = "http://localhost:9191/api";
 const apiUrl = (path) => `${API_BASE}/${String(path).replace(/^\/+/, "")}`;
 const app = document.querySelector("#app");
 const statuses = ["New Lead", "Contacted", "Interested", "Follow Up", "Not Available", "Not Picking Call", "Rescheduled", "Not Interested", "Won", "Lost"];
@@ -263,10 +265,10 @@ function openAssign(id) {
 }
 
 function openNewQuote(id) {
-  const l = state.leads.find((x) => x._id === id);
+  const lead = state.leads.find((l) => l._id === id);
   const options = (type) => active(type).map((x) => `<option value="${x._id}" data-price="${x.systemPrice || 0}">${esc(x.name)}</option>`).join("");
   const tax = quoteTaxDefaults();
-  modal("Quotation Generate", `<div class="quote-paper"><div class="quote-head"><div><b>Zen Grid Solar LLP</b><br>${esc(l?.customerName)} / ${esc(l?.phone)}</div><div>Quote</div></div><div class="grid two"><div class="field"><label>System Size</label><select name="systemSizeConfigId" id="systemPick" required>${options("system-size")}</select></div><div class="field"><label>Base Price</label><input type="number" name="price" id="qPrice"></div><div class="field"><label>Solar Panel</label><select name="panelConfigId">${options("solar-panel")}</select></div><div class="field"><label>Inverter</label><select name="inverterConfigId">${options("inverter")}</select></div><div class="field"><label>Floor</label><select name="floor">${floors.map((x) => `<option>${x}</option>`)}</select></div><div class="field"><label>Structure</label><select name="structureConfigId">${options("structure-type")}</select></div><div class="field"><label>Wiring</label><select name="wiringConfigId">${options("wiring")}</select></div><div class="field"><label>Cleaning</label><select name="cleaning"><option>Yes</option><option>No</option></select></div><div class="field"><label>Overhead Price</label><input type="number" name="overheadPrice" value="0"></div><div class="field"><label>Extra Discount</label><input type="number" name="extraDiscount" value="0"></div><div class="field"><label>GST %</label><input type="number" name="gstPercent" value="${tax.gstPercent || 0}"></div><div class="field"><label>Central Subsidy</label><input type="number" name="subsidy1" value="${tax.centralSubsidy || 0}"></div><div class="field"><label>UPNEDA Subsidy</label><input type="number" name="subsidy2" value="${tax.upnedaSubsidy || 0}"></div><div class="field"><label>Send</label><select><option>Email/WhatsApp buttons ready for integration</option></select></div></div></div>`, async (data) => { const res = await api(`/activities/quotes/${id}`, { method: "POST", body: JSON.stringify(data) }); viewQuotePdf(res.quote); });
+  modal("📄 Quotation Generate Karo", `<div class="quote-paper legacy-quote-form"><div class="quote-customer">⚡ Customer: <strong>${esc(lead?.customerName || "—")}</strong><span>📞 ${esc(lead?.phone || "—")}</span><span>📍 ${esc(lead?.area || "—")}</span></div><div class="grid two"><div class="field"><label>System Size (kW)</label><select name="systemSizeConfigId" id="systemPick" required>${options("system-size")}</select></div><div class="field"><label>Solar Panel</label><select name="panelConfigId">${options("solar-panel")}</select></div><div class="field"><label>Inverter</label><select name="inverterConfigId">${options("inverter")}</select></div><div class="field"><label>Structure Type</label><select name="structureConfigId">${options("structure-type")}</select></div><div class="field"><label>Floor / Height</label><select name="floor">${floors.map((x) => `<option>${x}</option>`)}</select></div><div class="field"><label>Wiring</label><select name="wiringConfigId">${options("wiring")}</select></div><div class="field"><label>Cleaning Frequency</label><select name="cleaning"><option>Yes</option><option>No</option></select></div><div class="field"><label>System Price (₹)</label><input type="number" name="price" id="qPrice"></div><div class="field"><label>Early Bird Discount (₹)</label><input type="number" name="discount1" value="10000"></div><div class="field"><label>Extra Discount (₹)</label><input type="number" name="discount2" value="0"></div><div class="field"><label>GST %</label><input type="number" name="gstPercent" value="${tax.gstPercent || 0}"></div><div class="field"><label>Govt Subsidy (₹)</label><input type="number" name="subsidy1" value="${tax.centralSubsidy || 0}"></div><div class="field"><label>UPNEDA Subsidy (₹)</label><input type="number" name="subsidy2" value="${tax.upnedaSubsidy || 0}"></div><div class="field"><label>Overhead Price (₹)</label><input type="number" name="overheadPrice" value="0"></div><div class="field" style="grid-column:1/-1"><label>Note (optional)</label><textarea name="note" placeholder="Koi special note..."></textarea></div></div></div>`, async (data) => { const res = await api(`/activities/quotes/${id}`, { method: "POST", body: JSON.stringify(data) }); viewQuotePdf(res.quote); });
   const pick = document.querySelector("#systemPick"), price = document.querySelector("#qPrice");
   const setPrice = () => { price.value = pick.selectedOptions[0]?.dataset.price || 0; };
   pick.onchange = setPrice; setPrice();
@@ -342,10 +344,17 @@ function openDocument(html, width = 980, height = 1100) {
   document.body.append(host);
   host.querySelectorAll("[data-close]").forEach((b) => b.onclick = () => host.remove());
   const frame = host.querySelector("iframe");
-  frame.srcdoc = html;
+  frame.srcdoc = html
+    .replace("Commercial <span>Offer</span>", "Our offer <span>for you</span>")
+    .replace("Solar Rooftop System Price", "Rooftop System")
+    .replace('>Discount</td>', '>Early Bird Discount</td>')
+    .replace('>Net Price</td>', `>Net Price (Inclusive of ${html.match(/GST @ ([^<]+)%/)?.[1] || "8.9"}% GST)</td>`)
+    .replace('>Net Effective Price</td>', '>⚡ Net Effective Price*</td>');
 }
 
 function viewQuotePdf(q) {
+  openDocument(renderQuoteDocument(q, { esc, rupee, fmtDocDate, logo: zengridLogoMarkup }));
+  return;
   const price = Number(q.price || 0);
   const discounts = Number(q.discount1 || 0) + Number(q.discount2 || 0) + Number(q.extraDiscount || 0);
   const netPrice = Number(q.netPrice || price - discounts);
