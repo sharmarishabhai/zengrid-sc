@@ -21,6 +21,7 @@ const state = {
   scs: [],
   summary: {},
   reports: [],
+  plants: [],
   meetingDate: new Date().toISOString().slice(0, 10),
 };
 
@@ -97,7 +98,7 @@ async function loadData() {
     const meetingQuery = state.view === "meetings" ? `?date=${encodeURIComponent(state.meetingDate)}` : "";
     const leadJoin = dateQuery ? `${dateQuery}&limit=500` : "?limit=500";
     const meetingJoin = meetingQuery ? `${meetingQuery}&limit=500` : "?limit=500";
-    const calls = [api("/auth/me"), api("/activities/summary"), api(`/leads/mine${leadJoin}`), api(`/activities/meetings${meetingJoin}`), api("/followups")];
+    const calls = [api("/auth/me"), api("/activities/summary"), api(`/leads/mine${leadJoin}`), api(`/activities/meetings${meetingJoin}`), api("/followups"), api("/plants")];
     if (canManageCommercialDocs()) calls.push(api("/activities/quotes?limit=500"), api("/activities/payments?limit=500"));
     calls.push(api("/config"));
     const loadLrmResources = state.user?.userType === "lrm" || state.user?.userType === "admin";
@@ -109,11 +110,12 @@ async function loadData() {
       leads: data[2].leads || [],
       meetings: data[3].meetings || [],
       followUps: data[4].followUps || [],
-      quotes: canManageCommercialDocs() ? data[5].quotes || [] : [],
-      payments: canManageCommercialDocs() ? data[6].payments || [] : [],
-      configs: data[canManageCommercialDocs() ? 7 : 5].items || [],
-      scs: loadLrmResources ? data[canManageCommercialDocs() ? 8 : 6]?.users || [] : [],
-      reports: loadLrmResources ? data[canManageCommercialDocs() ? 9 : 7]?.reports || [] : [],
+      plants: data[5].plants || [],
+      quotes: canManageCommercialDocs() ? data[6].quotes || [] : [],
+      payments: canManageCommercialDocs() ? data[7].payments || [] : [],
+      configs: data[canManageCommercialDocs() ? 8 : 6].items || [],
+      scs: loadLrmResources ? data[canManageCommercialDocs() ? 9 : 7]?.users || [] : [],
+      reports: loadLrmResources ? data[canManageCommercialDocs() ? 10 : 8]?.reports || [] : [],
     });
     localStorage.setItem("zg_user", JSON.stringify(state.user));
   } catch (e) {
@@ -159,7 +161,7 @@ function infoModal(title, body) {
 }
 
 function layout(title, sub, body) {
-  const tabs = isLrm() ? [["leads", "Leads"], ["meetings", "Meetings"], ["followups", "Follow-ups"]] : [["meetings", "Meetings"], ["followups", "Follow-ups"], ["leads", "Leads"]];
+  const tabs = isLrm() ? [["leads", "Leads"], ["meetings", "Meetings"], ["followups", "Follow-ups"]] : [["meetings", "Meetings"], ["plants", "Nearby Plants"], ["followups", "Follow-ups"], ["leads", "Leads"]];
   const name = `${state.user?.firstName || ""} ${state.user?.lastName || ""}`.trim() || "Team";
   const initials = name.split(/\s+/).filter(Boolean).slice(0, 2).map((x) => x[0]).join("").toUpperCase() || "ZG";
   const role = state.user?.userType === "lrm" ? "LRM workspace" : state.user?.userType === "admin" ? "Admin workspace" : "SC workspace";
@@ -216,6 +218,31 @@ function leadsView() {
     ["won", "Won", state.leads.filter((l) => l.leadStatus === "Won").length, "closed orders"],
   ];
   return layout("Lead Management", isLrm() ? "Your added or assigned leads. Add, edit, assign and schedule." : "Assigned leads only. SC cannot add leads.", `<div class="status-strip">${statusTiles.map(([cls, label, value, hint]) => `<div class="status-tile ${cls}"><b>${value}</b><span>${label}</span><small>${hint}</small></div>`).join("")}</div><div class="card section-card"><div class="section-head"><h3>Lead Pipeline</h3><div class="toolbar">${add}<button class="btn" id="refresh">Refresh</button></div></div><div class="list">${state.leads.map((l) => leadCard(l)).join("") || `<div class="empty">No leads found</div>`}</div></div>`);
+}
+
+function plantsView() {
+  const valid = state.plants.filter((p) => Number.isFinite(Number(p.latitude)) && Number.isFinite(Number(p.longitude)));
+  const options = state.leads.filter((l) => !state.plants.some((p) => String(p.leadId?._id || p.leadId) === String(l._id))).map((l) => `<option value="${l._id}">${esc(l.customerName)} - ${esc(l.phone)}</option>`).join("");
+  return layout("Nearby Plants", "View installed customer plants and add coordinates for assigned customers.", `<div class="card"><div class="section-head" style="padding:0 0 14px;border:0;background:none"><div><h3>Plant locations</h3><div class="muted">${valid.length} mapped plants. Tap a marker for customer details and call.</div></div><button class="btn primary compact" id="addPlant">Add plant</button></div><div id="plantMap" style="height:480px;border-radius:12px;overflow:hidden;border:1px solid var(--line);background:#eee"></div></div><div class="card section-card"><div class="section-head"><h3>Mapped customers</h3><span class="count-pill">${valid.length}</span></div><div class="list">${valid.map((p) => `<div class="lead"><div class="lead-main"><div class="lead-top"><div><h3>${esc(p.leadId?.customerName || "Customer")}</h3><div class="lead-id">${esc(p.leadId?.phone || "-")}</div></div><a class="btn compact green" href="tel:${esc(p.leadId?.phone || "")}">Call</a></div><div class="muted" style="margin-top:10px">${Number(p.latitude).toFixed(6)}, ${Number(p.longitude).toFixed(6)}${p.locationLabel ? ` · ${esc(p.locationLabel)}` : ""}</div></div></div>`).join("") || `<div class="empty">No plants mapped yet.</div>`}</div></div>`);
+}
+
+function openPlantForm() {
+  modal("Add customer plant", `<div class="grid"><div class="field"><label>Customer</label><select name="leadId" required><option value="">Select assigned customer</option>${state.leads.map((l) => `<option value="${l._id}">${esc(l.customerName)} - ${esc(l.phone)}</option>`).join("")}</select></div><div class="grid two"><div class="field"><label>Latitude</label><input name="latitude" type="number" step="any" min="-90" max="90" required placeholder="26.990882"></div><div class="field"><label>Longitude</label><input name="longitude" type="number" step="any" min="-180" max="180" required placeholder="80.940043"></div></div><div class="field"><label>Location label (optional)</label><input name="locationLabel" placeholder="Rooftop plant"></div><div class="toolbar" style="justify-content:flex-end"><button class="btn primary" type="submit">Save plant</button></div></div>`, (data) => api("/plants", { method: "POST", body: JSON.stringify(data) }));
+}
+
+function initPlantMap() {
+  const el = document.querySelector("#plantMap");
+  if (!el) return;
+  const renderMap = () => {
+    const map = L.map(el).setView([26.8467, 80.9462], 11);
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { attribution: "© OpenStreetMap contributors" }).addTo(map);
+    const bounds = [];
+    state.plants.forEach((p) => { const lat = Number(p.latitude), lng = Number(p.longitude); if (!Number.isFinite(lat) || !Number.isFinite(lng)) return; bounds.push([lat, lng]); const c = p.leadId || {}; L.marker([lat, lng]).addTo(map).bindPopup(`<b>${esc(c.customerName || "Customer")}</b><br>${esc(c.phone || "-")}<br><a href="tel:${esc(c.phone || "")}">Call customer</a>`); });
+    if (bounds.length) map.fitBounds(bounds, { padding: [30, 30] });
+  };
+  if (window.L) return renderMap();
+  const link = document.createElement("link"); link.rel = "stylesheet"; link.href = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"; document.head.append(link);
+  const script = document.createElement("script"); script.src = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"; script.onload = renderMap; document.head.append(script);
 }
 
 function followupsView() {
@@ -416,6 +443,8 @@ function bind() {
   bindSendButtons();
   document.querySelectorAll("[data-nav]").forEach((b) => b.onclick = () => { window.open(`https://www.google.com/maps/search/${encodeURIComponent(b.dataset.nav || "")}`, "_blank"); });
   document.querySelector("#dailyReport")?.addEventListener("click", openReport);
+  document.querySelector("#addPlant")?.addEventListener("click", openPlantForm);
+  if (state.view === "plants") initPlantMap();
   document.querySelector("#logoutProfile")?.addEventListener("click", () => { localStorage.clear(); Object.assign(state, { accessToken: "", user: null }); renderLogin(); });
   bindDocumentButtons();
   bindSendButtons();
@@ -425,7 +454,7 @@ function render() {
   if (!state.accessToken || !state.user) return renderLogin();
   if (!isLrm() && state.view === "report") state.view = "meetings";
   if (state.view === "records") state.view = "leads";
-  const views = { meetings: meetingsView, leads: leadsView, followups: followupsView, report: reportView, profile: profileView };
+  const views = { meetings: meetingsView, plants: plantsView, leads: leadsView, followups: followupsView, report: reportView, profile: profileView };
   (views[state.view] || meetingsView)();
   bind();
 }
