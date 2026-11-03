@@ -4,6 +4,7 @@ import { renderQuoteDocument } from "./quote-template.js";
 const API_BASE = (import.meta.env.VITE_API_BASE_URL || "https://zengridpwa-backend.onrender.com/api").replace(/\/$/, "");
 const apiUrl = (path) => `${API_BASE}/${String(path).replace(/^\/+/, "")}`;
 const app = document.querySelector("#app");
+const hideSplash = () => document.querySelector("#appSplash")?.classList.add("hide");
 const statuses = ["New Lead", "Contacted", "Interested", "Follow Up", "Not Available", "Not Picking Call", "Rescheduled", "Not Interested", "Won", "Lost"];
 const outcomes = ["Not Available", "Not Picking Call", "Rescheduled", "Follow Up", "Won", "Lost"];
 const floors = ["G", "G+1", "G+2", "G+3", "G+4", "G+5"];
@@ -147,6 +148,7 @@ async function loadData() {
 }
 
 function renderLogin() {
+  hideSplash();
   app.innerHTML = `<div class="login"><div class="loginbox"><div class="brand"><div class="mark"></div><div>Zen Grid Solar<div class="muted">Field operations</div></div></div><h1>Sign in</h1><div class="grid"><div class="field"><label>Email</label><input id="email" autocomplete="email"></div><div class="field"><label>Password</label><input id="password" type="password" autocomplete="current-password"></div><button class="btn primary" id="loginBtn">Continue</button></div></div></div>`;
   document.querySelector("#loginBtn").onclick = async () => {
     setLoading(true);
@@ -475,6 +477,7 @@ function bind() {
 }
 
 function render() {
+  hideSplash();
   if (!state.accessToken || !state.user) return renderLogin();
   if (!isLrm() && state.view === "report") state.view = "meetings";
   if (state.view === "records") state.view = "leads";

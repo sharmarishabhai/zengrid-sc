@@ -13,6 +13,8 @@
     <script type="module" src="/src/main.js"></script>
   </head>
   <body>
+    <div id="appSplash" aria-label="Loading ZenGrid Solar"><img src="/quote-assets/gst-logo.jpeg" alt="Zengrid Solar"><span>ZenGrid Solar</span></div>
     <div id="app"></div>
+    <style>#appSplash{position:fixed;inset:0;z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;background:#4c118f;color:#fff;font:800 20px Inter,Arial,sans-serif;transition:opacity .25s ease}#appSplash img{width:150px;height:150px;object-fit:cover;border-radius:24px;background:#fff;box-shadow:0 18px 48px rgba(0,0,0,.24)}#appSplash.hide{opacity:0;pointer-events:none}</style>
   </body>
   </html>
