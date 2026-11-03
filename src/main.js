@@ -43,7 +43,7 @@ const css = `
 @media(max-width:900px){.status-strip{grid-template-columns:repeat(2,minmax(0,1fr))}.lead-meta{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:760px){.content{padding:12px}.bar{padding:17px 12px 44px}.bar-inner{align-items:center}.brandline{gap:10px}.mark{width:38px;height:38px;border-radius:10px;flex-basis:38px}.bar h1{font-size:20px}.stats{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:-34px}.two{grid-template-columns:1fr}.actions{grid-template-columns:repeat(2,minmax(0,1fr))}.doc-summary{grid-template-columns:1fr}.doc-line{grid-template-columns:1fr}.btn.compact{min-height:30px;padding:6px 9px;font-size:11px;border-radius:7px;box-shadow:none}.btn.compact svg{width:13px;height:13px}.btn{width:100%;min-height:42px;padding-left:9px;padding-right:9px}.danger{width:auto}.section-head{padding:13px 14px;align-items:flex-start;flex-direction:column}.section-head .toolbar{width:100%}.section-head .toolbar .btn.compact{min-height:30px;padding:6px 9px;font-size:11px;border-radius:7px;box-shadow:none}.btn.compact svg{width:13px;height:13px}.btn{flex:1 1 120px}.status-tile{min-height:70px;padding:11px 11px 11px 13px}.status-tile b{font-size:20px}.profile-link{padding:5px}.profile-link span:last-child{display:none}}
 @media(max-width:430px){.app{padding-bottom:104px}.stats{grid-template-columns:repeat(2,minmax(0,1fr))}.stat{padding:12px}.status-strip{grid-template-columns:1fr 1fr;gap:8px}.status-tile{min-height:66px;padding:10px 9px 10px 12px}.status-tile b{font-size:19px}.status-tile span{font-size:9px;letter-spacing:.35px}.lead-top{align-items:flex-start}.lead-title{gap:8px}.avatar{width:36px;height:36px;border-radius:10px}.lead-meta{grid-template-columns:1fr}.actions{grid-template-columns:1fr 1fr}.tabs{grid-template-columns:repeat(3,1fr);row-gap:5px}.tabs button{font-size:10px;padding:8px 2px}.bar p{font-size:11px}.v{font-size:23px}.modalback{place-items:start center;padding:10px}.modal{width:calc(100vw - 20px);max-height:calc(100vh - 20px);padding:13px}.modalhead{gap:10px}.icon-close{width:32px!important;height:32px!important;min-height:32px!important;flex-basis:32px;font-size:19px}.choice-grid{grid-template-columns:1fr}.role-chip{font-size:10px;line-height:1.25}}
-.doc-preview-modal{width:min(1120px,calc(100vw - 24px));height:min(92vh,980px);padding:14px}.doc-preview-frame{width:100%;height:calc(92vh - 76px);border:1px solid var(--line);border-radius:10px;background:#fff}.doc-actions-inline,.doc-actions{display:flex;gap:7px;justify-content:flex-end;flex-wrap:wrap}@media(max-width:340px){.stats,.status-strip,.actions{grid-template-columns:1fr}.bar-inner{gap:8px}.danger{padding-left:9px;padding-right:9px}.lead-main{padding-right:10px}.pill{white-space:normal;text-align:center}}
+.doc-preview-modal{width:min(1120px,calc(100vw - 24px));height:min(92vh,980px);padding:14px}.doc-preview-frame{width:100%;height:calc(92vh - 76px);border:1px solid var(--line);border-radius:10px;background:#fff}.doc-actions-inline,.doc-actions{display:flex;gap:7px;justify-content:flex-end;flex-wrap:wrap}.loading-overlay{position:fixed;inset:0;z-index:200;background:rgba(255,255,255,.62);backdrop-filter:blur(2px);display:grid;place-items:center}.loading-card{display:flex;align-items:center;gap:11px;background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px 18px;box-shadow:0 18px 50px rgba(76,17,143,.2);color:#4c118f;font-weight:900}.loading-spinner{width:22px;height:22px;border:3px solid #e8def5;border-top-color:#4c118f;border-radius:50%;animation:zgspin .75s linear infinite}@keyframes zgspin{to{transform:rotate(360deg)}}@media(max-width:340px){.stats,.status-strip,.actions{grid-template-columns:1fr}.bar-inner{gap:8px}.danger{padding-left:9px;padding-right:9px}.lead-main{padding-right:10px}.pill{white-space:normal;text-align:center}}
 `;
 document.head.insertAdjacentHTML("beforeend", `<style>${css}</style>`);
 
@@ -69,14 +69,34 @@ const docContactActions = (type, row) => {
   return `<div class="actions doc-actions-inline"><button class="btn compact blue" data-doc="${type}:${row._id}">View</button>${email}${whatsapp}</div>`;
 };
 
+let pendingRequests = 0;
+function setLoading(active) {
+  pendingRequests += active ? 1 : -1;
+  pendingRequests = Math.max(0, pendingRequests);
+  let overlay = document.querySelector("#loadingOverlay");
+  if (pendingRequests > 0 && !overlay) {
+    overlay = document.createElement("div");
+    overlay.id = "loadingOverlay";
+    overlay.className = "loading-overlay";
+    overlay.innerHTML = `<div class="loading-card"><span class="loading-spinner"></span><span>Loading…</span></div>`;
+    document.body.append(overlay);
+  }
+  if (pendingRequests === 0) overlay?.remove();
+}
+
 async function api(path, options = {}) {
+  setLoading(true);
   const headers = new Headers(options.headers || {});
   headers.set("Content-Type", "application/json");
   if (state.accessToken) headers.set("Authorization", `Bearer ${state.accessToken}`);
-  const res = await fetch(apiUrl(path), { ...options, headers });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.message || "Request failed");
-  return data;
+  try {
+    const res = await fetch(apiUrl(path), { ...options, headers });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.message || "Request failed");
+    return data;
+  } finally {
+    setLoading(false);
+  }
 }
 
 function toast(message) {
@@ -128,6 +148,7 @@ async function loadData() {
 function renderLogin() {
   app.innerHTML = `<div class="login"><div class="loginbox"><div class="brand"><div class="mark"></div><div>Zen Grid Solar<div class="muted">Field operations</div></div></div><h1>Sign in</h1><div class="grid"><div class="field"><label>Email</label><input id="email" autocomplete="email"></div><div class="field"><label>Password</label><input id="password" type="password" autocomplete="current-password"></div><button class="btn primary" id="loginBtn">Continue</button></div></div></div>`;
   document.querySelector("#loginBtn").onclick = async () => {
+    setLoading(true);
     try {
       const data = await fetch(apiUrl("/auth/login"), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email: email.value.trim(), password: password.value }) }).then((r) => r.json().then((d) => r.ok ? d : Promise.reject(d)));
       Object.assign(state, { accessToken: data.accessToken, refreshToken: data.refreshToken, user: data.user });
@@ -136,7 +157,7 @@ function renderLogin() {
       localStorage.setItem("zg_user", JSON.stringify(data.user));
       state.view = isLrm() ? "leads" : "meetings";
       loadData();
-    } catch (e) { toast(e.message || "Login failed"); }
+    } catch (e) { toast(e.message || "Login failed"); } finally { setLoading(false); }
   };
 }
 
