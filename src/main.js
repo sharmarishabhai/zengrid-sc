@@ -162,11 +162,12 @@ function infoModal(title, body) {
 }
 
 function layout(title, sub, body) {
-  const tabs = isLrm() ? [["leads", "Leads"], ["meetings", "Meetings"], ["followups", "Follow-ups"]] : [["meetings", "Meetings"], ["plants", "Nearby Plants"], ["followups", "Follow-ups"], ["leads", "Leads"]];
+  const tabs = isLrm() ? [["leads", "Leads"], ["meetings", "Meetings"], ["followups", "Follow-ups"]] : [["meetings", "Meetings"], ["followups", "Follow-ups"], ["leads", "Leads"]];
   const name = `${state.user?.firstName || ""} ${state.user?.lastName || ""}`.trim() || "Team";
   const initials = name.split(/\s+/).filter(Boolean).slice(0, 2).map((x) => x[0]).join("").toUpperCase() || "ZG";
   const role = state.user?.userType === "lrm" ? "LRM workspace" : state.user?.userType === "admin" ? "Admin workspace" : "SC workspace";
-  app.innerHTML = `<div class="app"><div class="bar"><div class="bar-inner"><div class="brandline"><div class="mark"></div><div><h1>Zen Grid Solar</h1><p>Field operations</p><div class="role-chip">${esc(name)} / ${role}</div></div></div><a class="profile-link ${state.view === "profile" ? "active" : ""}" href="#" id="profileLink"><span class="profile-avatar">${esc(initials)}</span><span>Profile</span></a></div></div><div class="content">${summaryCards()}${body}</div><div class="tabs">${tabs.map(([id, label]) => `<button class="${state.view === id ? "active" : ""}" data-view="${id}">${label}</button>`).join("")}</div></div>`;
+  app.innerHTML = `<div class="app"><div class="bar"><div class="bar-inner"><div class="brandline"><div class="mark"></div><div><h1>Zen Grid Solar</h1><p>Field operations</p><div class="role-chip">${esc(name)} / ${role}</div></div></div><div class="toolbar"><a class="profile-link ${state.view === "plants" ? "active" : ""}" href="#" id="plantsLink" title="Nearby plants"><span style="font-size:20px">⌖</span><span>Plants</span></a><a class="profile-link ${state.view === "profile" ? "active" : ""}" href="#" id="profileLink"><span class="profile-avatar">${esc(initials)}</span><span>Profile</span></a></div></div></div><div class="content">${summaryCards()}${body}</div><div class="tabs">${tabs.map(([id, label]) => `<button class="${state.view === id ? "active" : ""}" data-view="${id}">${label}</button>`).join("")}</div></div>`;
+  document.querySelector("#plantsLink").onclick = (e) => { e.preventDefault(); state.view = "plants"; loadData(); };
   document.querySelector("#profileLink").onclick = (e) => { e.preventDefault(); state.view = "profile"; render(); };
   document.querySelectorAll("[data-view]").forEach((b) => b.onclick = () => { state.view = b.dataset.view; loadData(); });
 }
