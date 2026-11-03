@@ -1,7 +1,7 @@
 import { renderQuoteDocument } from "./quote-template.js";
 
 // On a phone, localhost means the phone itself. Render supplies the public backend URL at build time.
-const API_BASE = (import.meta.env.VITE_API_BASE_URL || "http://localhost:9191/api").replace(/\/$/, "");
+const API_BASE = (import.meta.env.VITE_API_BASE_URL || "https://zengridpwa-backend.onrender.com/api").replace(/\/$/, "");
 const apiUrl = (path) => `${API_BASE}/${String(path).replace(/^\/+/, "")}`;
 const app = document.querySelector("#app");
 const statuses = ["New Lead", "Contacted", "Interested", "Follow Up", "Not Available", "Not Picking Call", "Rescheduled", "Not Interested", "Won", "Lost"];
