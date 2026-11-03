@@ -46,6 +46,7 @@ const css = `
 .doc-preview-modal{width:min(1120px,calc(100vw - 24px));height:min(92vh,980px);padding:14px}.doc-preview-frame{width:100%;height:calc(92vh - 76px);border:1px solid var(--line);border-radius:10px;background:#fff}.doc-actions-inline,.doc-actions{display:flex;gap:7px;justify-content:flex-end;flex-wrap:wrap}.loading-overlay{position:fixed;inset:0;z-index:200;background:rgba(255,255,255,.62);backdrop-filter:blur(2px);display:grid;place-items:center}.loading-card{display:flex;align-items:center;gap:11px;background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px 18px;box-shadow:0 18px 50px rgba(76,17,143,.2);color:#4c118f;font-weight:900}.loading-spinner{width:22px;height:22px;border:3px solid #e8def5;border-top-color:#4c118f;border-radius:50%;animation:zgspin .75s linear infinite}@keyframes zgspin{to{transform:rotate(360deg)}}@media(max-width:340px){.stats,.status-strip,.actions{grid-template-columns:1fr}.bar-inner{gap:8px}.danger{padding-left:9px;padding-right:9px}.lead-main{padding-right:10px}.pill{white-space:normal;text-align:center}}
 `;
 document.head.insertAdjacentHTML("beforeend", `<style>${css}</style>`);
+document.head.insertAdjacentHTML("beforeend", `<style>.mark{background:#fff url('/quote-assets/gst-logo.jpeg') center/cover no-repeat!important}.mark:after{display:none!important}</style>`);
 
 const esc = (v) => String(v ?? "").replace(/[&<>"']/g, (m) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[m]));
 const rupee = (n) => `Rs ${Number(n || 0).toLocaleString("en-IN")}`;
@@ -384,7 +385,7 @@ function fmtDocDate(value = new Date()) {
 }
 
 function zengridLogoMarkup(size = 34) {
-  return `<div style="width:${size}px;height:${size}px;background:#F5A623;border-radius:8px;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:900">Z</div>`;
+  return `<img src="/quote-assets/gst-logo.jpeg" alt="Zengrid Solar" style="width:${size}px;height:${size}px;object-fit:cover;border-radius:8px;display:block">`;
 }
 
 function openDocument(html, width = 980, height = 1100) {
