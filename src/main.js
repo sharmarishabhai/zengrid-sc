@@ -119,7 +119,7 @@ async function loadData() {
   try {
     const dateQuery = state.view === "meetings" ? `?meetingDate=${encodeURIComponent(state.meetingDate)}` : "";
     const meetingQuery = state.view === "meetings" ? `?date=${encodeURIComponent(state.meetingDate)}` : "";
-    const leadJoin = dateQuery ? `${dateQuery}&limit=500` : "?limit=500";
+    const leadJoin = dateQuery ? `${dateQuery}&limit=1000` : "?limit=1000";
     const meetingJoin = meetingQuery ? `${meetingQuery}&limit=500` : "?limit=500";
     const calls = [api("/auth/me"), api("/activities/summary"), api(`/leads/mine${leadJoin}`), api(`/activities/meetings${meetingJoin}`), api("/followups"), api("/plants")];
     if (canManageCommercialDocs()) calls.push(api("/activities/quotes?limit=500"), api("/activities/payments?limit=500"));
