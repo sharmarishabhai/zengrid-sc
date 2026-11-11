@@ -149,11 +149,11 @@ async function loadData() {
 
 function renderLogin() {
   hideSplash();
-  app.innerHTML = `<div class="login"><div class="loginbox"><div class="brand"><div class="mark"></div><div>Zen Grid Solar<div class="muted">Field operations</div></div></div><h1>Sign in</h1><div class="grid"><div class="field"><label>Email</label><input id="email" autocomplete="email"></div><div class="field"><label>Password</label><input id="password" type="password" autocomplete="current-password"></div><button class="btn primary" id="loginBtn">Continue</button></div></div></div>`;
+  app.innerHTML = `<div class="login"><div class="loginbox"><div class="brand"><div class="mark"></div><div>Zen Grid Solar<div class="muted">Field operations</div></div></div><h1>Sign in</h1><div class="grid"><div class="field"><label>First Name</label><input id="email" autocomplete="username"></div><div class="field"><label>Password</label><input id="password" type="password" autocomplete="current-password"></div><button class="btn primary" id="loginBtn">Continue</button></div></div></div>`;
   document.querySelector("#loginBtn").onclick = async () => {
     setLoading(true);
     try {
-      const data = await fetch(apiUrl("/auth/login"), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email: email.value.trim(), password: password.value }) }).then((r) => r.json().then((d) => r.ok ? d : Promise.reject(d)));
+      const data = await fetch(apiUrl("/auth/login"), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ username: email.value.trim(), password: password.value }) }).then((r) => r.json().then((d) => r.ok ? d : Promise.reject(d)));
       Object.assign(state, { accessToken: data.accessToken, refreshToken: data.refreshToken, user: data.user });
       localStorage.setItem("zg_access", data.accessToken);
       localStorage.setItem("zg_refresh", data.refreshToken);
