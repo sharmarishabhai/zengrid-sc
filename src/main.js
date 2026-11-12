@@ -19,6 +19,7 @@ const state = {
   followUps: [],
   quotes: [],
   payments: [],
+  gst: [],
   configs: [],
   scs: [],
   summary: {},
@@ -122,7 +123,7 @@ async function loadData() {
     const leadJoin = dateQuery ? `${dateQuery}&limit=5000` : "?limit=5000";
     const meetingJoin = meetingQuery ? `${meetingQuery}&limit=500` : "?limit=500";
     const calls = [api("/auth/me"), api("/activities/summary"), api(`/leads/mine${leadJoin}`), api(`/activities/meetings${meetingJoin}`), api("/followups"), api("/plants")];
-    if (canManageCommercialDocs()) calls.push(api("/activities/quotes?limit=500"), api("/activities/payments?limit=500"));
+    if (canManageCommercialDocs()) calls.push(api("/activities/quotes?limit=500"), api("/activities/payments?limit=500"), api("/activities/gst?limit=500"));
     calls.push(api("/config"));
     const loadLrmResources = state.user?.userType === "lrm" || state.user?.userType === "admin";
     if (loadLrmResources) calls.push(api("/users/scs"), api("/activities/daily-reports"));
@@ -136,9 +137,10 @@ async function loadData() {
       plants: data[5].plants || [],
       quotes: canManageCommercialDocs() ? data[6].quotes || [] : [],
       payments: canManageCommercialDocs() ? data[7].payments || [] : [],
-      configs: data[canManageCommercialDocs() ? 8 : 6].items || [],
-      scs: loadLrmResources ? data[canManageCommercialDocs() ? 9 : 7]?.users || [] : [],
-      reports: loadLrmResources ? data[canManageCommercialDocs() ? 10 : 8]?.reports || [] : [],
+      gst: canManageCommercialDocs() ? data[8].invoices || [] : [],
+      configs: data[canManageCommercialDocs() ? 9 : 6].items || [],
+      scs: loadLrmResources ? data[canManageCommercialDocs() ? 10 : 7]?.users || [] : [],
+      reports: loadLrmResources ? data[canManageCommercialDocs() ? 11 : 8]?.reports || [] : [],
     });
     localStorage.setItem("zg_user", JSON.stringify(state.user));
   } catch (e) {
@@ -342,15 +344,27 @@ function openNewGst(id) {
   finalAmount.oninput = () => { const total = Math.max(0, Number(finalAmount.value) || 0); const tax = Math.round(total * 8.9 / 108.9); gst.value = tax; taxable.value = total - tax; };
 }
 
+function gstWords(value) {
+  const n = Math.round(Number(value) || 0);
+  return n ? `Rs ${n.toLocaleString("en-IN")}` : "Zero";
+}
+
+function viewGstPdf(g) {
+  const gst = Number(g.cgst || 0) + Number(g.sgst || 0) + Number(g.igst || 0);
+  const total = Number(g.taxableAmount || 0) + gst;
+  openDocument(`<!doctype html><html><head><meta charset="UTF-8"><title>GST Invoice</title><style>body{font-family:Arial;padding:32px;color:#172033}.invoice{max-width:760px;margin:auto;border:1px solid #ddd;padding:28px}.head{display:flex;justify-content:space-between;border-bottom:3px solid #4c118f;padding-bottom:18px}.meta{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;background:#f5f5f7;padding:14px;margin:20px 0}.label{font-size:11px;color:#777;text-transform:uppercase}.value{font-weight:bold;margin-top:5px}table{width:100%;border-collapse:collapse;margin-top:20px}td{padding:12px;border-bottom:1px solid #ddd}td:last-child{text-align:right;font-weight:bold}.total td{background:#0a1628;color:#fff;font-size:16px}.gst{color:#185fa5}</style></head><body><div class="invoice"><div class="head"><h1>GST INVOICE</h1><div>${esc(g.invoiceNo)}</div></div><div class="meta"><div><div class="label">Customer</div><div class="value">${esc(g.customerName || g.leadName)}</div></div><div><div class="label">HSN/SAC</div><div class="value">85414011</div></div><div><div class="label">Date</div><div class="value">${fmtDocDate(g.createdAt)}</div></div></div><table><tr><td>Taxable Amount</td><td>${rupee(g.taxableAmount)}</td></tr><tr><td class="gst">GST @ 8.9%</td><td class="gst">${rupee(gst)}</td></tr><tr class="total"><td>Total Invoice Amount</td><td>${rupee(total)}</td></tr></table><p>Amount in words: ${gstWords(total)} Only</p></div></body></html>`);
+}
+
 function leadDocs(id, type) {
   const lead = state.leads.find((l) => l._id === id);
   const rows = (type === "quote"
     ? state.quotes.filter((q) => leadKey(q.leadId) === id)
-    : state.payments.filter((p) => leadKey(p.leadId) === id))
+    : type === "payment" ? state.payments.filter((p) => leadKey(p.leadId) === id)
+    : state.gst.filter((g) => leadKey(g.leadId) === id))
     .sort((a, b) => new Date(b.createdAt || b.paymentDate || 0) - new Date(a.createdAt || a.paymentDate || 0));
-  const title = type === "quote" ? "Quotations" : "Receipts";
-  const addLabel = type === "quote" ? "Add New Quote" : "Add New Receipt";
-  const addClass = type === "quote" ? "primary" : "green";
+  const title = type === "quote" ? "Quotations" : type === "payment" ? "Receipts" : "GST Invoices";
+  const addLabel = type === "quote" ? "Add New Quote" : type === "payment" ? "Add New Receipt" : "New GST Invoice";
+  const addClass = type === "quote" ? "primary" : type === "payment" ? "green" : "blue";
   const totalValue = rows.reduce((sum, row) => sum + Number(type === "quote" ? row.netEffectivePrice : row.paidAmount || 0), 0);
   const latestValue = Number(type === "quote" ? rows[0]?.netEffectivePrice : rows[0]?.paidAmount || 0);
   const summary = `<div class="doc-summary"><div class="meta"><label>Total ${title}</label><span>${rows.length}</span></div><div class="meta"><label>Latest</label><span>${rows.length ? rupee(latestValue) : "-"}</span></div><div class="meta"><label>${type === "quote" ? "Quote Value" : "Received"}</label><span>${rupee(totalValue)}</span></div></div>`;
@@ -366,6 +380,7 @@ function leadDocs(id, type) {
     host.remove();
     if (type === "quote") openNewQuote(id);
     if (type === "payment") openNewPayment(id);
+    if (type === "gst") openNewGst(id);
   };
   bindDocumentButtons();
   bindSendButtons();
@@ -437,10 +452,11 @@ function viewReceiptPdf(p) {
 function bindDocumentButtons() {
   document.querySelectorAll("[data-doc]").forEach((b) => b.onclick = () => {
     const [type, id] = b.dataset.doc.split(":");
-    const row = type === "quote" ? state.quotes.find((x) => x._id === id) : state.payments.find((x) => x._id === id);
+    const row = type === "quote" ? state.quotes.find((x) => x._id === id) : type === "payment" ? state.payments.find((x) => x._id === id) : state.gst.find((x) => x._id === id);
     if (!row) return toast("Record not found");
     if (type === "quote") viewQuotePdf(row);
     if (type === "payment") viewReceiptPdf(row);
+    if (type === "gst") viewGstPdf(row);
   });
   document.querySelectorAll("[data-gst]").forEach((b) => b.onclick = () => openNewGst(b.dataset.gst));
 }
