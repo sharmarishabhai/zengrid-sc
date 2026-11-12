@@ -218,7 +218,7 @@ function leadCard(l, context = "lead") {
   const ownsLead = !isCurrentLrm || String(l.assignedByUserId || l.createdByUserId || "") === String(state.user?._id || "");
   const canAddLeadActions = isCurrentLrm && ownsLead;
   const canUseLeadActions = !isCurrentLrm || ownsLead;
-  const docActions = canManageCommercialDocs() ? `<button class="btn primary" data-quote="${l._id}">Quote</button><button class="btn green" data-pay="${l._id}">Receipt</button><button class="btn blue" data-gst="${l._id}">GST Invoice</button>` : "";
+  const docActions = canManageCommercialDocs() ? `<button class="btn primary" data-quote="${l._id}">Quote</button><button class="btn green" data-pay="${l._id}">Receipt</button><button class="btn blue" data-gst="${l._id}">GST Invoices</button>` : "";
   const initials = String(l.customerName || "ZG").split(/\s+/).filter(Boolean).slice(0, 2).map((x) => x[0]).join("").toUpperCase();
   const live = isLiveMeeting(l);
   const done = isDoneMeeting(l);
@@ -357,6 +357,13 @@ function viewGstPdf(g) {
 
 function leadDocs(id, type) {
   const lead = state.leads.find((l) => l._id === id);
+  if (type === "gst") {
+    const rows = state.gst.filter((g) => leadKey(g.leadId) === id).sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+    const host = infoModal(`GST Invoices - ${lead?.customerName || "Lead"}`, `<div class="section-head" style="margin:-2px 0 12px;padding:0 0 12px;background:#fff"><div><h3 style="margin:0">GST Invoices</h3><div class="muted">${esc(lead?.customerName || "")} / ${esc(lead?.phone || "")}</div></div><button class="btn blue" data-add-gst>New GST Invoice</button></div><div class="doc-list">${rows.length ? rows.map((g) => { const tax = Number(g.cgst || 0) + Number(g.sgst || 0) + Number(g.igst || 0); const total = Number(g.taxableAmount || 0) + tax; return `<div class="doc-row"><div class="doc-row-top"><div class="doc-title"><div class="doc-icon">G</div><div><b>${esc(g.invoiceNo)}</b><div class="muted">${fmtDocDate(g.createdAt)}</div></div></div><span class="pill pblue">${rupee(total)}</span></div><div class="doc-line"><div class="meta"><label>Taxable Amount</label><span>${rupee(g.taxableAmount)}</span></div><div class="meta"><label>GST @ 8.9%</label><span>${rupee(tax)}</span></div><div class="meta"><label>HSN/SAC</label><span>85414011</span></div></div><div class="actions"><button class="btn compact blue" data-doc="gst:${g._id}">View Invoice</button></div></div>`; }).join("") : `<div class="empty">No GST invoices generated for this lead.</div>`}</div>`);
+    host.querySelector("[data-add-gst]").onclick = () => { host.remove(); openNewGst(id); };
+    bindDocumentButtons();
+    return;
+  }
   const rows = (type === "quote"
     ? state.quotes.filter((q) => leadKey(q.leadId) === id)
     : type === "payment" ? state.payments.filter((p) => leadKey(p.leadId) === id)
@@ -458,7 +465,7 @@ function bindDocumentButtons() {
     if (type === "payment") viewReceiptPdf(row);
     if (type === "gst") viewGstPdf(row);
   });
-  document.querySelectorAll("[data-gst]").forEach((b) => b.onclick = () => openNewGst(b.dataset.gst));
+  document.querySelectorAll("[data-gst]").forEach((b) => b.onclick = () => leadDocs(b.dataset.gst, "gst"));
 }
 
 function bindSendButtons() {
