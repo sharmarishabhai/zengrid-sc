@@ -424,11 +424,6 @@ function zengridLogoMarkup(size = 34) {
 }
 
 function openDocument(html, width = 980, height = 1100) {
-  const discountRows = html.match(/<tr><td class="disc">(?:Early Bird Discount|Discount)<\/td><td class="disc">-\s*(?:Rs|₹)\s*[\d,.-]+<\/td><\/tr>/g) || [];
-  if (discountRows.length > 1) {
-    const discount = discountRows.reduce((sum, row) => sum + (Number(row.match(/(?:Rs|₹)\s*([\d,.-]+)/)?.[1]?.replace(/,/g, "")) || 0), 0);
-    html = html.replace(discountRows.join(""), `<tr><td class="disc">Discount</td><td class="disc">- ${rupee(discount)}</td></tr>`);
-  }
   const host = document.createElement("div");
   host.className = "modalback doc-preview-back";
   host.innerHTML = `<div class="modal doc-preview-modal"><div class="modalhead"><h2>Document Preview</h2><button type="button" class="icon-close" data-close aria-label="Close">x</button></div><iframe class="doc-preview-frame" title="Document Preview"></iframe></div>`;
