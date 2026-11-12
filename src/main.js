@@ -216,7 +216,7 @@ function leadCard(l, context = "lead") {
   const ownsLead = !isCurrentLrm || String(l.assignedByUserId || l.createdByUserId || "") === String(state.user?._id || "");
   const canAddLeadActions = isCurrentLrm && ownsLead;
   const canUseLeadActions = !isCurrentLrm || ownsLead;
-  const docActions = canManageCommercialDocs() ? `<button class="btn primary" data-quote="${l._id}">Quote</button><button class="btn green" data-pay="${l._id}">Receipt</button>` : "";
+  const docActions = canManageCommercialDocs() ? `<button class="btn primary" data-quote="${l._id}">Quote</button><button class="btn green" data-pay="${l._id}">Receipt</button><button class="btn blue" data-gst="${l._id}">GST Invoice</button>` : "";
   const initials = String(l.customerName || "ZG").split(/\s+/).filter(Boolean).slice(0, 2).map((x) => x[0]).join("").toUpperCase();
   const live = isLiveMeeting(l);
   const done = isDoneMeeting(l);
@@ -336,6 +336,12 @@ function openNewPayment(id) {
   modal("Payment Receipt", `<div class="grid two"><div class="field"><label>Total Amount</label><input type="number" name="totalAmount" required></div><div class="field"><label>Paid Amount</label><input type="number" name="paidAmount" required></div><div class="field"><label>Payment Mode</label><select name="paymentMode"><option>Cash</option><option>UPI</option><option>Bank Transfer</option><option>Cheque</option></select></div><div class="field"><label>Date</label><input type="date" name="paymentDate" value="${today()}"></div><div class="field" style="grid-column:1/-1"><label>Notes</label><textarea name="notes"></textarea></div></div>`, async (data) => { const res = await api(`/activities/payments/${id}`, { method: "POST", body: JSON.stringify(data) }); viewReceiptPdf(res.payment); });
 }
 
+function openNewGst(id) {
+  modal("GST Invoice", `<div class="grid two"><div class="field"><label>Customer GSTIN</label><input name="customerGSTIN"></div><div class="field"><label>PAN</label><input name="customerPAN"></div><div class="field"><label>Final Invoice Amount (GST inclusive)</label><input type="number" name="finalAmount" id="scGstFinal" min="0" step="0.01"></div><div class="field"><label>Taxable Amount</label><input type="number" id="scGstTaxable" readonly></div><div class="field"><label>GST @ 8.9%</label><input type="number" name="cgst" id="scGstAmount" readonly></div><div class="field" style="grid-column:1/-1"><label>Address</label><textarea name="address"></textarea></div></div>`, async (data) => { const finalAmount = Math.max(0, Number(data.finalAmount) || 0); const gst = Math.round(finalAmount * 8.9 / 108.9); data.taxableAmount = finalAmount - gst; data.cgst = gst; delete data.finalAmount; const res = await api(`/activities/gst/${id}`, { method: "POST", body: JSON.stringify(data) }); toast(`GST invoice ${res.invoice?.invoiceNo || "created"}`); });
+  const finalAmount = document.querySelector("#scGstFinal"), taxable = document.querySelector("#scGstTaxable"), gst = document.querySelector("#scGstAmount");
+  finalAmount.oninput = () => { const total = Math.max(0, Number(finalAmount.value) || 0); const tax = Math.round(total * 8.9 / 108.9); gst.value = tax; taxable.value = total - tax; };
+}
+
 function leadDocs(id, type) {
   const lead = state.leads.find((l) => l._id === id);
   const rows = (type === "quote"
@@ -436,6 +442,7 @@ function bindDocumentButtons() {
     if (type === "quote") viewQuotePdf(row);
     if (type === "payment") viewReceiptPdf(row);
   });
+  document.querySelectorAll("[data-gst]").forEach((b) => b.onclick = () => openNewGst(b.dataset.gst));
 }
 
 function bindSendButtons() {
