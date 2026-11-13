@@ -122,7 +122,8 @@ async function loadData() {
     const meetingQuery = state.view === "meetings" ? `?date=${encodeURIComponent(state.meetingDate)}` : "";
     const leadJoin = dateQuery ? `${dateQuery}&limit=5000` : "?limit=5000";
     const meetingJoin = meetingQuery ? `${meetingQuery}&limit=500` : "?limit=500";
-    const calls = [api("/auth/me"), api("/activities/summary"), api(`/leads/mine${leadJoin}`), api(`/activities/meetings${meetingJoin}`), api("/followups"), api("/plants")];
+    const calls = [api("/auth/me"), api("/activities/summary"), api(`/leads/mine${leadJoin}`), api(`/activities/meetings${meetingJoin}`), api("/followups")];
+    if (isSc()) calls.push(api("/plants"));
     if (canManageCommercialDocs()) calls.push(api("/activities/quotes?limit=500"), api("/activities/payments?limit=500"), api("/activities/gst?limit=500"));
     calls.push(api("/config"));
     const loadLrmResources = state.user?.userType === "lrm" || state.user?.userType === "admin";
@@ -134,13 +135,13 @@ async function loadData() {
       leads: data[2].leads || [],
       meetings: data[3].meetings || [],
       followUps: data[4].followUps || [],
-      plants: data[5].plants || [],
-      quotes: canManageCommercialDocs() ? data[6].quotes || [] : [],
-      payments: canManageCommercialDocs() ? data[7].payments || [] : [],
-      gst: canManageCommercialDocs() ? data[8].invoices || [] : [],
-      configs: data[canManageCommercialDocs() ? 9 : 6].items || [],
-      scs: loadLrmResources ? data[canManageCommercialDocs() ? 10 : 7]?.users || [] : [],
-      reports: loadLrmResources ? data[canManageCommercialDocs() ? 11 : 8]?.reports || [] : [],
+      plants: isSc() ? data[5].plants || [] : [],
+      quotes: canManageCommercialDocs() ? data[isSc() ? 6 : 5].quotes || [] : [],
+      payments: canManageCommercialDocs() ? data[isSc() ? 7 : 6].payments || [] : [],
+      gst: canManageCommercialDocs() ? data[isSc() ? 8 : 7].invoices || [] : [],
+      configs: data[canManageCommercialDocs() ? (isSc() ? 9 : 8) : 5].items || [],
+      scs: loadLrmResources ? data[canManageCommercialDocs() ? (isSc() ? 10 : 9) : 6]?.users || [] : [],
+      reports: loadLrmResources ? data[canManageCommercialDocs() ? (isSc() ? 11 : 10) : 7]?.reports || [] : [],
     });
     localStorage.setItem("zg_user", JSON.stringify(state.user));
   } catch (e) {
