@@ -27,6 +27,7 @@ const state = {
   plants: [],
   meetingDate: new Date().toISOString().slice(0, 10),
 };
+let loadSequence = 0;
 
 const css = `
 :root{--ink:#241a30;--muted:#6c6675;--soft:#f4f2ee;--line:#ddd8e6;--bg:#f4f2ee;--panel:#fff;--nav:#4c118f;--brand:#4c118f;--solar:#a8b79a;--gold:#8fa57f;--green:#0f8f62;--mint:#e8f7ee;--red:#c93642;--purple:#4c118f;--shadow:0 18px 44px rgba(76,17,143,.12);font-family:Inter,Arial,sans-serif}
@@ -117,6 +118,7 @@ function toast(message) {
 
 async function loadData() {
   if (!state.accessToken) return renderLogin();
+  const requestId = ++loadSequence;
   try {
     const dateQuery = state.view === "meetings" ? `?meetingDate=${encodeURIComponent(state.meetingDate)}` : "";
     const meetingQuery = state.view === "meetings" ? `?date=${encodeURIComponent(state.meetingDate)}` : "";
@@ -129,6 +131,7 @@ async function loadData() {
     const loadLrmResources = state.user?.userType === "lrm" || state.user?.userType === "admin";
     if (loadLrmResources) calls.push(api("/users/scs"), api("/activities/daily-reports"));
     const data = await Promise.all(calls);
+    if (requestId !== loadSequence) return;
     Object.assign(state, {
       user: data[0].user,
       summary: data[1].summary || {},
@@ -145,6 +148,7 @@ async function loadData() {
     });
     localStorage.setItem("zg_user", JSON.stringify(state.user));
   } catch (e) {
+    if (requestId !== loadSequence) return;
     if (/session expired|invalid token|not authorized/i.test(e.message || "")) {
       localStorage.removeItem("zg_access"); localStorage.removeItem("zg_refresh"); localStorage.removeItem("zg_user");
       Object.assign(state, { accessToken: "", refreshToken: "", user: null });
