@@ -225,7 +225,7 @@ function layout(title, sub, body) {
   const tabs = isLrm() ? [["leads", "Leads"], ["meetings", "Meetings"], ["followups", "Follow-ups"]] : [["meetings", "Meetings"], ["followups", "Follow-ups"], ["leads", "Leads"]];
   const name = `${state.user?.firstName || ""} ${state.user?.lastName || ""}`.trim() || "Team";
   const initials = name.split(/\s+/).filter(Boolean).slice(0, 2).map((x) => x[0]).join("").toUpperCase() || "ZG";
-  const role = state.user?.userType === "lrm" ? "LRM workspace" : state.user?.userType === "admin" ? "Admin workspace" : "SC workspace";
+  const role = state.user?.userType === "lrm_tl" ? "LRM Team Lead workspace" : state.user?.userType === "lrm" ? "LRM workspace" : state.user?.userType === "admin" ? "Admin workspace" : "SC workspace";
   app.innerHTML = `<div class="app"><div class="bar"><div class="bar-inner"><div class="brandline"><div class="mark"></div><div><h1>Zen Grid Solar</h1><p>Field operations</p><div class="role-chip">${esc(name)} / ${role}</div></div></div><div class="toolbar"><a class="profile-link ${state.view === "plants" ? "active" : ""}" href="#" id="plantsLink" title="Nearby plants"><span style="font-size:20px">⌖</span><span>Plants</span></a><a class="profile-link ${state.view === "profile" ? "active" : ""}" href="#" id="profileLink"><span class="profile-avatar">${esc(initials)}</span><span>Profile</span></a></div></div></div><div class="content">${summaryCards()}${body}</div><div class="tabs">${tabs.map(([id, label]) => `<button class="${state.view === id ? "active" : ""}" data-view="${id}">${label}</button>`).join("")}</div></div>`;
   document.querySelector("#plantsLink").onclick = (e) => { e.preventDefault(); state.view = "plants"; loadData(); };
   document.querySelector("#profileLink").onclick = (e) => { e.preventDefault(); state.view = "profile"; render(); };
@@ -249,7 +249,7 @@ function summaryCards() {
 
 function leadCard(l, context = "lead") {
   const isCurrentLrm = state.user?.userType === "lrm";
-  const ownsLead = !isCurrentLrm || String(l.assignedByUserId || l.createdByUserId || "") === String(state.user?._id || "");
+  const ownsLead = !isCurrentLrm || String(l.lrmAssignedToUserId || "") === String(state.user?._id || "");
   const canAddLeadActions = isCurrentLrm && ownsLead;
   const canUseLeadActions = !isCurrentLrm || ownsLead;
   const docActions = canManageCommercialDocs() ? `<button class="btn primary" data-quote="${l._id}">Quote</button><button class="btn green" data-pay="${l._id}">Receipt</button><button class="btn blue" data-gst="${l._id}">GST Invoices</button>` : "";
@@ -260,7 +260,9 @@ function leadCard(l, context = "lead") {
   const stateClass = live ? "live" : done ? "done" : follow ? "follow" : "";
   const stateText = live ? "Meeting live" : done ? "Meeting completed" : follow ? `Follow-up ${l.followUpDate || ""} ${l.followUpTime || ""}`.trim() : "Ready";
   const meetingActions = done ? `<button class="btn" data-follow="${l._id}">Follow-up</button>` : live ? `<button class="btn green" data-done="${l._id}">End Meeting</button><button class="btn" data-reschedule="${l._id}">Reschedule</button>` : `<button class="btn blue" data-start="${l._id}">Start Meeting</button><button class="btn" data-reschedule="${l._id}">Reschedule</button>`;
-  const normalActions = `<button class="btn" data-follow="${l._id}">Follow-up</button>`;
+  const quality = ["New Lead", "Call Back", "Hot", "Average", "Cold", "Junk", "Won"];
+  const qualityControl = isLrm() && canUseLeadActions ? `<select class="btn compact" data-lrm-status="${l._id}" aria-label="Lead quality status">${quality.map((s) => `<option ${l.lrmStatus === s ? "selected" : ""}>${s}</option>`).join("")}</select>` : "";
+  const normalActions = `${qualityControl}<button class="btn" data-follow="${l._id}">Follow-up</button>`;
   return `<div class="lead ${stateClass}"><div class="lead-main"><div class="lead-top"><div class="lead-title"><div class="avatar">${esc(initials || "ZG")}</div><div><h3>${esc(l.customerName)}</h3><div class="lead-id">${esc(l.leadId || "-")}</div><div class="status-line">${live ? `<span class="live-dot"></span>` : ""}<span class="muted">${esc(stateText)}</span></div></div></div><span class="pill ${badge(l.leadStatus)}">${esc(l.leadStatus)}</span></div><div class="lead-meta"><div class="meta"><label>Phone</label><span>${esc(l.phone)}</span></div><div class="meta"><label>WhatsApp</label><span>${esc(l.whatsappNumber || "-")}</span></div><div class="meta"><label>Email</label><span>${esc(l.email || "-")}</span></div><div class="meta"><label>Address</label><span>${esc([l.address, l.area, l.locality].filter(Boolean).join(", ") || "-")}</span></div><div class="meta"><label>Meeting</label><span>${esc(l.meetingDate || "-")} ${esc(l.meetingTime || "")}</span></div><div class="meta"><label>Bill</label><span>${rupee(l.monthlyBill)}</span></div></div><div class="actions"><button class="btn" data-call="${esc(l.phone)}">Call</button><button class="btn" data-wa="${esc(l.whatsappNumber || l.phone)}">WhatsApp</button><button class="btn" data-nav="${esc([l.address, l.area, l.locality].filter(Boolean).join(", "))}">Navigate</button>${canAddLeadActions ? `<button class="btn blue" data-assign="${l._id}">Assign SC</button><button class="btn" data-edit="${l._id}">Edit</button>` : ""}${canUseLeadActions ? `${docActions}${context === "meeting" ? meetingActions : normalActions}` : `<span class="muted" style="align-self:center">Owned by another LRM</span>`}</div></div></div>`;
 }
 
@@ -522,6 +524,7 @@ function bind() {
   document.querySelectorAll("[data-done]").forEach((b) => b.onclick = () => openOutcome(b.dataset.done));
   document.querySelectorAll("[data-reschedule]").forEach((b) => b.onclick = () => openFollow(b.dataset.reschedule));
   document.querySelectorAll("[data-follow]").forEach((b) => b.onclick = () => openFollow(b.dataset.follow));
+  document.querySelectorAll("[data-lrm-status]").forEach((el) => el.onchange = async () => { try { await api(`/leads/${el.dataset.lrmStatus}/status`, { method: "PATCH", body: JSON.stringify({ lrmStatus: el.value }) }); await loadData(); } catch (e) { toast(e.message); } });
   document.querySelectorAll("[data-start]").forEach((b) => b.onclick = async () => {
     const lead = state.leads.find((l) => l._id === b.dataset.start);
     if (lead) {
