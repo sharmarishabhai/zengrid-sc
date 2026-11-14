@@ -151,7 +151,10 @@ async function loadData() {
     calls.push(api("/config"));
     const loadLrmResources = ["lrm", "lrm_tl", "admin"].includes(state.user?.userType);
     if (loadLrmResources) calls.push(api("/users/scs"), api("/activities/daily-reports"));
-    const data = await Promise.all(calls);
+    const settled = await Promise.allSettled(calls);
+    const failed = settled.filter((result) => result.status === "rejected");
+    const data = settled.map((result) => result.status === "fulfilled" ? result.value : {});
+    if (failed.length) toast(`${failed.length} dashboard service${failed.length > 1 ? "s" : ""} unavailable; other data loaded`);
     if (requestId !== loadSequence) return;
     Object.assign(state, {
       user: data[0].user,
