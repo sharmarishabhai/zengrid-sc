@@ -278,12 +278,7 @@ function meetingsView() {
 
 function leadsView() {
   const add = isLrm() ? `<button class="btn primary" id="addLead">Add Lead</button>` : "";
-  const statusTiles = [
-    ["new", "New", state.leads.filter((l) => l.leadStatus === "New Lead").length, "fresh leads"],
-    ["interested", "Interested", state.leads.filter((l) => l.leadStatus === "Interested").length, "active chances"],
-    ["follow", "Follow-up", state.leads.filter((l) => l.leadStatus === "Follow Up" || l.followUpDate).length, "needs action"],
-    ["won", "Won", state.leads.filter((l) => l.leadStatus === "Won").length, "closed orders"],
-  ];
+  const statusTiles = [["new", "New Lead"], ["follow", "Call Back"], ["interested", "Hot"], ["interested", "Average"], ["new", "Cold"], ["follow", "Junk"], ["won", "Won"]].map(([cls, label]) => [cls, label, state.leads.filter((l) => (l.lrmStatus || "New Lead") === label).length, "lead quality"]);
   return layout("Lead Management", isLrm() ? "Your added or assigned leads. Add, edit, assign and schedule." : "Assigned leads only. SC cannot add leads.", `<div class="status-strip">${statusTiles.map(([cls, label, value, hint]) => `<div class="status-tile ${cls}"><b>${value}</b><span>${label}</span><small>${hint}</small></div>`).join("")}</div><div class="card section-card"><div class="section-head"><h3>Lead Pipeline</h3><div class="toolbar">${add}<button class="btn" id="refresh">Refresh</button></div></div><div class="list">${state.leads.map((l) => leadCard(l)).join("") || `<div class="empty">No leads found</div>`}</div></div>`);
 }
 
