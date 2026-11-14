@@ -54,7 +54,7 @@ document.head.insertAdjacentHTML("beforeend", `<style>.mark{background:#fff url(
 const esc = (v) => String(v ?? "").replace(/[&<>"']/g, (m) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[m]));
 const rupee = (n) => `Rs ${Number(n || 0).toLocaleString("en-IN")}`;
 const today = () => new Date().toISOString().slice(0, 10);
-const isLrm = () => state.user?.userType === "lrm" || state.user?.userType === "admin";
+const isLrm = () => ["lrm", "lrm_tl", "admin"].includes(state.user?.userType);
 const isSc = () => state.user?.userType === "sc";
 const canManageCommercialDocs = () => state.user?.userType === "sc" || state.user?.userType === "admin";
 const active = (type) => state.configs.filter((x) => x.type === type && x.status === "active");
@@ -149,7 +149,7 @@ async function loadData() {
     if (isSc()) calls.push(api("/plants"));
     if (canManageCommercialDocs()) calls.push(api("/activities/quotes?limit=500"), api("/activities/payments?limit=500"), api("/activities/gst?limit=500"));
     calls.push(api("/config"));
-    const loadLrmResources = state.user?.userType === "lrm" || state.user?.userType === "admin";
+    const loadLrmResources = ["lrm", "lrm_tl", "admin"].includes(state.user?.userType);
     if (loadLrmResources) calls.push(api("/users/scs"), api("/activities/daily-reports"));
     const data = await Promise.all(calls);
     if (requestId !== loadSequence) return;
