@@ -371,6 +371,8 @@ function openNewPayment(id) {
 
 function openNewGst(id) {
   modal("GST Invoice", `<div class="grid two"><div class="field"><label>Customer GSTIN</label><input name="customerGSTIN"></div><div class="field"><label>PAN</label><input name="customerPAN"></div><div class="field"><label>Final Invoice Amount (GST inclusive)</label><input type="number" name="finalAmount" id="scGstFinal" min="0" step="0.01"></div><div class="field"><label>Taxable Amount</label><input type="number" id="scGstTaxable" readonly></div><div class="field"><label>GST @ 8.9%</label><input type="number" name="cgst" id="scGstAmount" readonly></div><div class="field" style="grid-column:1/-1"><label>Address</label><textarea name="address"></textarea></div></div>`, async (data) => { const finalAmount = Math.max(0, Number(data.finalAmount) || 0); const gst = Math.round(finalAmount * 8.9 / 108.9); data.taxableAmount = finalAmount - gst; data.cgst = gst; delete data.finalAmount; const res = await api(`/activities/gst/${id}`, { method: "POST", body: JSON.stringify(data) }); toast(`GST invoice ${res.invoice?.invoiceNo || "created"}`); });
+  const gstGrid = document.querySelector(".modal .grid.two");
+  if (gstGrid) { const field = document.createElement("div"); field.className = "field"; field.innerHTML = `<label>Invoice Number (optional)</label><input name="invoiceNo" placeholder="Auto-generated if blank">`; gstGrid.prepend(field); }
   const finalAmount = document.querySelector("#scGstFinal"), taxable = document.querySelector("#scGstTaxable"), gst = document.querySelector("#scGstAmount");
   finalAmount.oninput = () => { const total = Math.max(0, Number(finalAmount.value) || 0); const tax = Math.round(total * 8.9 / 108.9); gst.value = tax; taxable.value = total - tax; };
 }
