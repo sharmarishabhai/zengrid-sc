@@ -106,6 +106,7 @@ async function api(path, options = {}) {
       } else {
         localStorage.removeItem("zg_access"); localStorage.removeItem("zg_refresh"); localStorage.removeItem("zg_user");
         Object.assign(state, { accessToken: "", refreshToken: "", user: null });
+        document.querySelectorAll(".modalback").forEach((node) => node.remove());
         renderLogin();
         throw new Error("Session expired. Please log in again.");
       }
@@ -114,6 +115,7 @@ async function api(path, options = {}) {
     if ((res.status === 401 || res.status === 403) && /session|token|authorized/i.test(data.message || "")) {
       localStorage.removeItem("zg_access"); localStorage.removeItem("zg_refresh"); localStorage.removeItem("zg_user");
       Object.assign(state, { accessToken: "", refreshToken: "", user: null });
+      document.querySelectorAll(".modalback").forEach((node) => node.remove());
       renderLogin();
       throw new Error(data.message || "Session expired. Please log in again.");
     }
@@ -152,6 +154,7 @@ async function loadData() {
     const loadLrmResources = ["lrm", "lrm_tl", "admin"].includes(state.user?.userType);
     if (loadLrmResources) calls.push(api("/users/scs"), api("/activities/daily-reports"));
     const settled = await Promise.allSettled(calls);
+    if (!state.accessToken || !state.user) return renderLogin();
     const failed = settled.filter((result) => result.status === "rejected");
     const data = settled.map((result) => result.status === "fulfilled" ? result.value : {});
     if (failed.length) toast(`${failed.length} dashboard service${failed.length > 1 ? "s" : ""} unavailable; other data loaded`);
