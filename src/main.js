@@ -28,6 +28,7 @@ const state = {
   maintenanceTasks: [],
   maintenanceHistory: [],
   meetingDate: new Date().toISOString().slice(0, 10),
+  leadStatusFilter: "",
 };
 let loadSequence = 0;
 
@@ -328,7 +329,9 @@ function meetingsView() {
 function leadsView() {
   const add = isLrm() ? `<button class="btn primary" id="addLead">Add Lead</button>` : "";
   const statusTiles = [["new", "New Lead"], ["follow", "Call Back"], ["interested", "Hot"], ["interested", "Average"], ["new", "Cold"], ["follow", "Junk"], ["won", "Won"]].map(([cls, label]) => [cls, label, state.leads.filter((l) => (l.lrmStatus || "New Lead") === label).length, "lead quality"]);
-  return layout("Lead Management", isLrm() ? "Your added or assigned leads. Add, edit, assign and schedule." : "Assigned leads only. SC cannot add leads.", `<div class="status-strip">${statusTiles.map(([cls, label, value, hint]) => `<div class="status-tile ${cls}"><b>${value}</b><span>${label}</span><small>${hint}</small></div>`).join("")}</div><div class="card section-card"><div class="section-head"><h3>Lead Pipeline</h3><div class="toolbar">${add}<button class="btn" id="refresh">Refresh</button></div></div><div class="list">${state.leads.map((l) => leadCard(l)).join("") || `<div class="empty">No leads found</div>`}</div></div>`);
+  const filteredLeads = state.leads.filter((l) => !state.leadStatusFilter || l.leadStatus === state.leadStatusFilter);
+  const statusFilter = `<label class="field" style="min-width:190px"><span>Filter leads</span><select id="leadStatusFilter"><option value="">All lead statuses</option>${statuses.map((s) => `<option value="${esc(s)}" ${state.leadStatusFilter === s ? "selected" : ""}>${esc(s)}</option>`).join("")}</select></label>`;
+  return layout("Lead Management", isLrm() ? "Your added or assigned leads. Add, edit, assign and schedule." : "Assigned leads only. SC cannot add leads.", `<div class="status-strip">${statusTiles.map(([cls, label, value, hint]) => `<div class="status-tile ${cls}"><b>${value}</b><span>${label}</span><small>${hint}</small></div>`).join("")}</div><div class="card section-card"><div class="section-head"><h3>Lead Pipeline</h3><div class="toolbar">${statusFilter}${add}<button class="btn" id="refresh">Refresh</button></div></div><div class="list">${filteredLeads.map((l) => leadCard(l)).join("") || `<div class="empty">No leads found</div>`}</div></div>`);
 }
 
 function plantsView() {
@@ -567,6 +570,7 @@ function bindSendButtons() {
 function bind() {
   document.querySelector("#refresh")?.addEventListener("click", loadData);
   document.querySelector("#meetingDateFilter")?.addEventListener("change", (e) => { state.meetingDate = e.target.value || today(); loadData(); });
+  document.querySelector("#leadStatusFilter")?.addEventListener("change", (e) => { state.leadStatusFilter = e.target.value || ""; render(); });
   document.querySelector("#todayMeetings")?.addEventListener("click", () => { state.meetingDate = today(); loadData(); });
   document.querySelector("#addLead")?.addEventListener("click", () => modal("Add Lead", leadForm(), (data) => api("/leads", { method: "POST", body: JSON.stringify(data) })));
   document.querySelectorAll("[data-edit]").forEach((b) => b.onclick = () => { const l = state.leads.find((x) => x._id === b.dataset.edit); modal("Edit Lead", leadForm(l), (data) => api(`/leads/${l._id}`, { method: "PATCH", body: JSON.stringify(data) })); });
