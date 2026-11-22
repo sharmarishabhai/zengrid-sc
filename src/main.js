@@ -25,6 +25,7 @@ const state = {
   summary: {},
   reports: [],
   plants: [],
+  maintenanceTasks: [],
   meetingDate: new Date().toISOString().slice(0, 10),
 };
 let loadSequence = 0;
@@ -56,6 +57,7 @@ const rupee = (n) => `Rs ${Number(n || 0).toLocaleString("en-IN")}`;
 const today = () => new Date().toISOString().slice(0, 10);
 const isLrm = () => ["lrm", "lrm_tl", "admin"].includes(state.user?.userType);
 const isSc = () => state.user?.userType === "sc";
+const isMaintenancePartner = () => state.user?.userType === "maintenance_cleaning_partner";
 const canManageCommercialDocs = () => state.user?.userType === "sc" || state.user?.userType === "admin";
 const active = (type) => state.configs.filter((x) => x.type === type && x.status === "active");
 const badge = (s) => s === "Won" || s === "done" ? "pgreen" : s === "Lost" || s === "Not Interested" ? "pred" : s === "Interested" ? "ppurple" : s === "Follow Up" || s === "Rescheduled" ? "porange" : "pblue";
@@ -143,6 +145,13 @@ async function loadData() {
   if (!state.accessToken) return renderLogin();
   const requestId = ++loadSequence;
   try {
+    const me = await api("/auth/me");
+    if (me.user?.userType === "maintenance_cleaning_partner") {
+      state.user = me.user;
+      state.maintenanceTasks = (await api("/maintenance/tasks")).tasks || [];
+      localStorage.setItem("zg_user", JSON.stringify(state.user));
+      return render();
+    }
     const dateQuery = state.view === "meetings" ? `?meetingDate=${encodeURIComponent(state.meetingDate)}` : "";
     const meetingQuery = state.view === "meetings" ? `?date=${encodeURIComponent(state.meetingDate)}` : "";
     const leadJoin = dateQuery ? `${dateQuery}&limit=5000` : "?limit=5000";
@@ -197,7 +206,7 @@ function renderLogin() {
       localStorage.setItem("zg_access", data.accessToken);
       localStorage.setItem("zg_refresh", data.refreshToken);
       localStorage.setItem("zg_user", JSON.stringify(data.user));
-      state.view = isLrm() ? "leads" : "meetings";
+      state.view = isMaintenancePartner() ? "my-tasks" : isLrm() ? "leads" : "meetings";
       loadData();
     } catch (e) { toast(e.message || "Login failed"); } finally { setLoading(false); }
   };
@@ -233,6 +242,29 @@ function layout(title, sub, body) {
   document.querySelector("#plantsLink").onclick = (e) => { e.preventDefault(); state.view = "plants"; loadData(); };
   document.querySelector("#profileLink").onclick = (e) => { e.preventDefault(); state.view = "profile"; render(); };
   document.querySelectorAll("[data-view]").forEach((b) => b.onclick = () => { state.view = b.dataset.view; loadData(); });
+}
+
+function maintenanceView() {
+  const tasks = state.maintenanceTasks || [];
+  const date = state.maintenanceDate || today();
+  const visible = tasks.filter((t) => String(t.scheduledDate || "").slice(0, 10) === date);
+  const cards = visible.map((t) => {
+    const lead = t.leadId || {}; const locked = t.status === "Completed" || t.status === "Cancelled";
+    return `<div class="lead"><div class="lead-main"><div class="lead-top"><div><h3>${esc(lead.customerName || "Customer")}</h3><div class="lead-id">${esc(lead.phone || "-")}</div></div><span class="pill ${t.status === "Completed" ? "pgreen" : "porange"}">${esc(t.status)}</span></div><div class="lead-meta"><div class="meta"><label>Address</label><span>${esc([lead.address, lead.area, lead.locality].filter(Boolean).join(", ") || "-")}</span></div><div class="meta"><label>Capacity</label><span>Installed solar plant</span></div><div class="meta"><label>Scheduled</label><span>${new Date(t.scheduledDate).toLocaleDateString()}</span></div></div>${locked ? `<div class="muted">Completed tasks are locked.</div>` : `<div class="actions"><label class="btn">Before photos<input type="file" accept="image/*" multiple data-maint-photo="before:${t._id}" hidden></label><label class="btn">After photos<input type="file" accept="image/*" multiple data-maint-photo="after:${t._id}" hidden></label><button class="btn green" data-maint-complete="${t._id}">Submit completion</button></div>`}</div></div>`;
+  }).join("");
+  return `<div class="card"><div class="section-head"><div><h3>My Tasks</h3><div class="muted">Only tasks assigned to you are shown.</div></div><input id="maintenanceDate" type="date" value="${date}"></div><div class="list">${cards || `<div class="empty">No tasks scheduled for this date.</div>`}</div></div>`;
+}
+
+function maintenancePartnerLayout() {
+  const tabs = [["my-tasks", "My Tasks"], ["task-history", "Task History"], ["profile", "Profile"], ["logout", "Logout"]];
+  const name = `${state.user?.firstName || ""} ${state.user?.lastName || ""}`.trim() || "Partner";
+  const body = state.view === "task-history" ? `<div class="card"><h3>Task History</h3><div class="list">${state.maintenanceTasks.filter((t) => t.status === "Completed").map((t) => `<div class="meta"><b>${esc(t.leadId?.customerName || "Customer")}</b><span>Completed ${t.completedAt ? new Date(t.completedAt).toLocaleString() : "-"}</span></div>`).join("") || `<div class="empty">No completed tasks yet.</div>`}</div></div>` : state.view === "profile" ? `<div class="profile-card"><h3>${esc(name)}</h3><p>${esc(state.user?.email || "")}</p><p>${esc(state.user?.phoneNumber || "")}</p></div>` : maintenanceView();
+  app.innerHTML = `<div class="app"><div class="bar"><div class="bar-inner"><div class="brandline"><div class="mark"></div><div><h1>Zen Grid Solar</h1><p>Maintenance & Cleaning Partner</p><div class="role-chip">${esc(name)}</div></div></div><button class="btn danger" id="partnerLogout">Logout</button></div></div><div class="content">${body}</div><div class="tabs">${tabs.map(([id, label]) => `<button class="${state.view === id ? "active" : ""}" data-maint-view="${id}">${label}</button>`).join("")}</div></div>`;
+  document.querySelector("#partnerLogout")?.addEventListener("click", () => { localStorage.clear(); Object.assign(state, { accessToken: "", refreshToken: "", user: null }); renderLogin(); });
+  document.querySelectorAll("[data-maint-view]").forEach((b) => b.onclick = () => { if (b.dataset.maintView === "logout") return document.querySelector("#partnerLogout")?.click(); state.view = b.dataset.maintView; render(); });
+  document.querySelector("#maintenanceDate")?.addEventListener("change", (e) => { state.maintenanceDate = e.target.value; render(); });
+  document.querySelectorAll("[data-maint-photo]").forEach((input) => input.addEventListener("change", async (e) => { const [type, id] = input.dataset.maintPhoto.split(":"); const fd = new FormData(); fd.append("type", type); [...e.target.files].forEach((f) => fd.append("files", f)); try { const r = await fetch(apiUrl(`/maintenance/tasks/${id}/photos`), { method: "POST", headers: { Authorization: `Bearer ${state.accessToken}` }, body: fd }); if (!r.ok) throw new Error((await r.json()).message || "Upload failed"); toast(`${type} photographs uploaded`); } catch (err) { toast(err.message); } }));
+  document.querySelectorAll("[data-maint-complete]").forEach((b) => b.onclick = async () => { try { await api(`/maintenance/tasks/${b.dataset.maintComplete}/complete`, { method: "POST", body: JSON.stringify({}) }); await loadData(); } catch (e) { toast(e.message); } });
 }
 
 function summaryCards() {
@@ -560,6 +592,7 @@ function bind() {
 function render() {
   hideSplash();
   if (!state.accessToken || !state.user) return renderLogin();
+  if (isMaintenancePartner()) return maintenancePartnerLayout();
   if (!isLrm() && state.view === "report") state.view = "meetings";
   if (state.view === "records") state.view = "leads";
   const views = { meetings: meetingsView, plants: plantsView, leads: leadsView, followups: followupsView, report: reportView, profile: profileView };
