@@ -352,7 +352,7 @@ function initPlantMap() {
     const map = L.map(el).setView([26.8467, 80.9462], 11);
     L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { attribution: "© OpenStreetMap contributors" }).addTo(map);
     const bounds = [];
-    state.plants.forEach((p) => { const lat = Number(p.latitude), lng = Number(p.longitude); if (!Number.isFinite(lat) || !Number.isFinite(lng)) return; bounds.push([lat, lng]); const c = p.leadId || {}; L.marker([lat, lng]).addTo(map).bindPopup(`<b>${esc(c.customerName || "Customer")}</b><br>${esc(c.phone || "-")}<br><a href="tel:${esc(c.phone || "")}">Call customer</a>`); });
+    state.plants.forEach((p) => { const lat = Number(p.latitude), lng = Number(p.longitude); if (!Number.isFinite(lat) || !Number.isFinite(lng)) return; bounds.push([lat, lng]); const c = p.leadId || {}; const maps = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(`${lat},${lng}`)}`; L.marker([lat, lng]).addTo(map).bindPopup(`<b>${esc(c.customerName || "Customer")}</b><br>${esc(c.phone || "-")}<br><a href="tel:${esc(c.phone || "")}">Call customer</a><br><a href="${maps}" target="_blank" rel="noreferrer">Navigate to plant</a>`); });
     if (bounds.length) map.fitBounds(bounds, { padding: [30, 30] });
   };
   if (window.L) return renderMap();
