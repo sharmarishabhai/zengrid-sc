@@ -155,7 +155,7 @@ async function loadData() {
       localStorage.setItem("zg_user", JSON.stringify(state.user));
       return render();
     }
-    const dateQuery = state.view === "meetings" ? `?meetingDate=${encodeURIComponent(state.meetingDate)}` : "";
+    const dateQuery = state.view === "meetings" ? `?meetingDate=${encodeURIComponent(state.meetingDate)}` : state.view === "fresh-leads" ? "?unassignedSc=true" : "";
     const meetingQuery = state.view === "meetings" ? `?date=${encodeURIComponent(state.meetingDate)}` : "";
     const leadJoin = dateQuery ? `${dateQuery}&limit=5000` : "?limit=5000";
     const meetingJoin = meetingQuery ? `${meetingQuery}&limit=500` : "?limit=500";
@@ -238,7 +238,7 @@ function infoModal(title, body) {
 }
 
 function layout(title, sub, body) {
-  const tabs = isLrm() ? [["leads", "Leads"], ["meetings", "Meetings"], ["followups", "Follow-ups"]] : [["meetings", "Meetings"], ["followups", "Follow-ups"], ["leads", "Leads"]];
+  const tabs = ["lrm", "lrm_tl"].includes(state.user?.userType) ? [["leads", "Leads"], ["fresh-leads", "Fresh Leads"], ["meetings", "Meetings"], ["followups", "Follow-ups"]] : isLrm() ? [["leads", "Leads"], ["meetings", "Meetings"], ["followups", "Follow-ups"]] : [["meetings", "Meetings"], ["followups", "Follow-ups"], ["leads", "Leads"]];
   const name = `${state.user?.firstName || ""} ${state.user?.lastName || ""}`.trim() || "Team";
   const initials = name.split(/\s+/).filter(Boolean).slice(0, 2).map((x) => x[0]).join("").toUpperCase() || "ZG";
   const role = state.user?.userType === "lrm_tl" ? "LRM Team Lead workspace" : state.user?.userType === "lrm" ? "LRM workspace" : state.user?.userType === "admin" ? "Admin workspace" : "SC workspace";
@@ -332,7 +332,8 @@ function leadsView() {
   const statusTiles = [["new", "New Lead"], ["follow", "Call Back"], ["interested", "Hot"], ["interested", "Average"], ["new", "Cold"], ["follow", "Junk"], ["won", "Won"]].map(([cls, label]) => [cls, label, state.leads.filter((l) => (l.lrmStatus || "New Lead") === label).length, "lead quality"]);
   const filteredLeads = state.leads.filter((l) => !state.leadStatusFilter || l.leadStatus === state.leadStatusFilter);
   const statusFilter = `<label class="field" style="min-width:190px"><span>Filter leads</span><select id="leadStatusFilter"><option value="">All lead statuses</option>${statuses.map((s) => `<option value="${esc(s)}" ${state.leadStatusFilter === s ? "selected" : ""}>${esc(s)}</option>`).join("")}</select></label>`;
-  return layout("Lead Management", isLrm() ? "Your added or assigned leads. Add, edit, assign and schedule." : "Assigned leads only. SC cannot add leads.", `<div class="status-strip">${statusTiles.map(([cls, label, value, hint]) => `<div class="status-tile ${cls}"><b>${value}</b><span>${label}</span><small>${hint}</small></div>`).join("")}</div><div class="card section-card"><div class="section-head"><h3>Lead Pipeline</h3><div class="toolbar">${statusFilter}${add}<button class="btn" id="refresh">Refresh</button></div></div><div class="list">${filteredLeads.map((l) => leadCard(l)).join("") || `<div class="empty">No leads found</div>`}</div></div>`);
+  const fresh = state.view === "fresh-leads";
+  return layout(fresh ? "Fresh Leads" : "Lead Management", fresh ? "Leads assigned to you/team but not yet assigned to an SC." : isLrm() ? "Your added or assigned leads. Add, edit, assign and schedule." : "Assigned leads only. SC cannot add leads.", `<div class="status-strip">${statusTiles.map(([cls, label, value, hint]) => `<div class="status-tile ${cls}"><b>${value}</b><span>${label}</span><small>${hint}</small></div>`).join("")}</div><div class="card section-card"><div class="section-head"><h3>${fresh ? "Unassigned to SC" : "Lead Pipeline"}</h3><div class="toolbar">${statusFilter}${add}<button class="btn" id="refresh">Refresh</button></div></div><div class="list">${filteredLeads.map((l) => leadCard(l)).join("") || `<div class="empty">No fresh leads found</div>`}</div></div>`);
 }
 
 function plantsView() {
@@ -614,7 +615,7 @@ function render() {
   if (isMaintenancePartner()) return maintenancePartnerLayout();
   if (!isLrm() && state.view === "report") state.view = "meetings";
   if (state.view === "records") state.view = "leads";
-  const views = { meetings: meetingsView, plants: plantsView, leads: leadsView, followups: followupsView, report: reportView, profile: profileView };
+  const views = { meetings: meetingsView, plants: plantsView, leads: leadsView, "fresh-leads": leadsView, followups: followupsView, report: reportView, profile: profileView };
   (views[state.view] || meetingsView)();
   bind();
 }
