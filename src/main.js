@@ -330,9 +330,9 @@ function meetingsView() {
 function leadsView() {
   const add = isLrm() ? `<button class="btn primary" id="addLead">Add Lead</button>` : "";
   const statusTiles = [["new", "New Lead"], ["follow", "Call Back"], ["interested", "Hot"], ["interested", "Average"], ["new", "Cold"], ["follow", "Junk"], ["won", "Won"]].map(([cls, label]) => [cls, label, state.leads.filter((l) => (l.lrmStatus || "New Lead") === label).length, "lead quality"]);
-  const filteredLeads = state.leads.filter((l) => !state.leadStatusFilter || l.leadStatus === state.leadStatusFilter);
-  const statusFilter = `<label class="field" style="min-width:190px"><span>Filter leads</span><select id="leadStatusFilter"><option value="">All lead statuses</option>${statuses.map((s) => `<option value="${esc(s)}" ${state.leadStatusFilter === s ? "selected" : ""}>${esc(s)}</option>`).join("")}</select></label>`;
   const fresh = state.view === "fresh-leads";
+  const filteredLeads = state.leads.filter((l) => (!fresh || (l.lrmStatus || "New Lead") === "New Lead") && (!state.leadStatusFilter || l.leadStatus === state.leadStatusFilter));
+  const statusFilter = `<label class="field" style="min-width:190px"><span>Filter leads</span><select id="leadStatusFilter"><option value="">All lead statuses</option>${statuses.map((s) => `<option value="${esc(s)}" ${state.leadStatusFilter === s ? "selected" : ""}>${esc(s)}</option>`).join("")}</select></label>`;
   return layout(fresh ? "Fresh Leads" : "Lead Management", fresh ? "Leads assigned to you/team but not yet assigned to an SC." : isLrm() ? "Your added or assigned leads. Add, edit, assign and schedule." : "Assigned leads only. SC cannot add leads.", `<div class="status-strip">${statusTiles.map(([cls, label, value, hint]) => `<div class="status-tile ${cls}"><b>${value}</b><span>${label}</span><small>${hint}</small></div>`).join("")}</div><div class="card section-card"><div class="section-head"><h3>${fresh ? "Unassigned to SC" : "Lead Pipeline"}</h3><div class="toolbar">${statusFilter}${add}<button class="btn" id="refresh">Refresh</button></div></div><div class="list">${filteredLeads.map((l) => leadCard(l)).join("") || `<div class="empty">No fresh leads found</div>`}</div></div>`);
 }
 
