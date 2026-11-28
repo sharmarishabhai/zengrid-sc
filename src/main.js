@@ -4,21 +4,28 @@ import { renderQuoteDocument } from "./quote-template.js";
 const API_BASE = (import.meta.env.VITE_API_BASE_URL || "https://zengridpwa-backend.onrender.com/api").replace(/\/$/, "");
 const apiUrl = (path) => `${API_BASE}/${String(path).replace(/^\/+/, "")}`;
 const app = document.querySelector("#app");
+const storage = {
+  get(key) { try { return window.localStorage?.getItem(key) || ""; } catch (_error) { return ""; } },
+  set(key, value) { try { window.localStorage?.setItem(key, value); } catch (_error) { /* private mode/quota */ } },
+  remove(key) { try { window.localStorage?.removeItem(key); } catch (_error) { /* private mode/quota */ } },
+  clear() { try { window.localStorage?.clear(); } catch (_error) { /* private mode/quota */ } },
+};
 let startupGuard;
 const hideSplash = () => {
   clearTimeout(startupGuard);
+  clearTimeout(window.__zgSplashTimer);
   document.querySelector("#appSplash")?.classList.add("hide");
 };
 const readStoredUser = () => {
-  try { return JSON.parse(localStorage.getItem("zg_user") || "null"); } catch (_error) { localStorage.removeItem("zg_user"); return null; }
+  try { return JSON.parse(storage.get("zg_user") || "null"); } catch (_error) { storage.remove("zg_user"); return null; }
 };
 const statuses = ["New Lead", "Contacted", "Interested", "Follow Up", "Not Available", "Not Picking Call", "Rescheduled", "Not Interested", "Won", "Lost"];
 const outcomes = ["Not Available", "Not Picking Call", "Rescheduled", "Follow Up", "Won", "Lost"];
 const floors = ["G", "G+1", "G+2", "G+3", "G+4", "G+5"];
 
 const state = {
-  accessToken: localStorage.getItem("zg_access") || "",
-  refreshToken: localStorage.getItem("zg_refresh") || "",
+  accessToken: storage.get("zg_access"),
+  refreshToken: storage.get("zg_refresh"),
   user: readStoredUser(),
   view: "meetings",
   leads: [],
@@ -120,11 +127,11 @@ async function api(path, options = {}) {
       const refreshData = await refreshRes.json().catch(() => ({}));
       if (refreshRes.ok && refreshData.accessToken) {
         state.accessToken = refreshData.accessToken;
-        localStorage.setItem("zg_access", state.accessToken);
+        storage.set("zg_access", state.accessToken);
         headers.set("Authorization", `Bearer ${state.accessToken}`);
         res = await fetch(apiUrl(path), { ...options, headers, signal: options.signal || controller.signal });
       } else {
-        localStorage.removeItem("zg_access"); localStorage.removeItem("zg_refresh"); localStorage.removeItem("zg_user");
+        storage.remove("zg_access"); storage.remove("zg_refresh"); storage.remove("zg_user");
         Object.assign(state, { accessToken: "", refreshToken: "", user: null });
         document.querySelectorAll(".modalback").forEach((node) => node.remove());
         renderLogin();
@@ -133,7 +140,7 @@ async function api(path, options = {}) {
     }
     const data = await res.json().catch(() => ({}));
     if ((res.status === 401 || res.status === 403) && /session|token|authorized/i.test(data.message || "")) {
-      localStorage.removeItem("zg_access"); localStorage.removeItem("zg_refresh"); localStorage.removeItem("zg_user");
+      storage.remove("zg_access"); storage.remove("zg_refresh"); storage.remove("zg_user");
       Object.assign(state, { accessToken: "", refreshToken: "", user: null });
       document.querySelectorAll(".modalback").forEach((node) => node.remove());
       renderLogin();
@@ -172,7 +179,7 @@ async function loadData() {
       state.user = me.user;
       state.maintenanceTasks = (await api("/maintenance/tasks")).tasks || [];
       state.maintenanceHistory = (await api("/maintenance/history")).tasks || [];
-      localStorage.setItem("zg_user", JSON.stringify(state.user));
+      storage.set("zg_user", JSON.stringify(state.user));
       return render();
     }
     const dateQuery = state.view === "meetings" ? `?meetingDate=${encodeURIComponent(state.meetingDate)}` : state.view === "fresh-leads" ? "?unassignedSc=true" : "";
@@ -208,11 +215,11 @@ async function loadData() {
       scs: loadLrmResources ? data[canManageCommercialDocs() ? (isSc() ? 10 : 9) : 6]?.users || [] : [],
       reports: loadLrmResources ? data[canManageCommercialDocs() ? (isSc() ? 11 : 10) : 7]?.reports || [] : [],
     });
-    localStorage.setItem("zg_user", JSON.stringify(state.user));
+    storage.set("zg_user", JSON.stringify(state.user));
   } catch (e) {
     if (requestId !== loadSequence) return;
     if (/session expired|invalid token|not authorized/i.test(e.message || "")) {
-      localStorage.removeItem("zg_access"); localStorage.removeItem("zg_refresh"); localStorage.removeItem("zg_user");
+      storage.remove("zg_access"); storage.remove("zg_refresh"); storage.remove("zg_user");
       Object.assign(state, { accessToken: "", refreshToken: "", user: null });
       return renderLogin();
     }
@@ -230,9 +237,9 @@ function renderLogin() {
     try {
       const data = await fetch(apiUrl("/auth/login"), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ username: email.value.trim(), password: password.value }) }).then((r) => r.json().then((d) => r.ok ? d : Promise.reject(d)));
       Object.assign(state, { accessToken: data.accessToken, refreshToken: data.refreshToken, user: data.user });
-      localStorage.setItem("zg_access", data.accessToken);
-      localStorage.setItem("zg_refresh", data.refreshToken);
-      localStorage.setItem("zg_user", JSON.stringify(data.user));
+      storage.set("zg_access", data.accessToken);
+      storage.set("zg_refresh", data.refreshToken);
+      storage.set("zg_user", JSON.stringify(data.user));
       state.view = isMaintenancePartner() ? "my-tasks" : isLrm() ? "leads" : "meetings";
       loadData();
     } catch (e) { toast(e.message || "Login failed"); } finally { setLoading(false); }
@@ -295,7 +302,7 @@ function maintenancePartnerLayout() {
   const name = `${state.user?.firstName || ""} ${state.user?.lastName || ""}`.trim() || "Partner";
   const body = state.view === "task-history" ? `<div class="card"><h3>Task History</h3><div class="list">${state.maintenanceHistory.map((t) => { const before = (t.photos || []).filter((p) => p.type === "before"); const after = (t.photos || []).filter((p) => p.type === "after"); const gallery = (photos, label) => `<div style="margin-top:12px"><b>${label}</b><div class="toolbar">${photos.map((p) => `<a href="${esc(p.secureUrl)}" target="_blank" rel="noreferrer"><img src="${esc(p.secureUrl)}" alt="${label}" style="width:96px;height:72px;object-fit:cover;border-radius:7px;border:1px solid var(--line)"></a>`).join("") || `<span class="muted">No photographs</span>`}</div></div>`; return `<div class="meta"><b>${esc(t.leadId?.customerName || "Customer")}</b><span>Completed ${t.completedAt ? new Date(t.completedAt).toLocaleString() : "-"} · Submitted ${t.updatedAt ? new Date(t.updatedAt).toLocaleString() : "-"}</span>${gallery(before, "Before Cleaning")}${gallery(after, "After Cleaning")}</div>`; }).join("") || `<div class="empty">No completed tasks yet.</div>`}</div></div>` : maintenanceView();
   app.innerHTML = `<div class="app"><div class="bar"><div class="bar-inner"><div class="brandline"><div class="mark"></div><div><h1>Zen Grid Solar</h1><p>Maintenance & Cleaning Partner</p><div class="role-chip">${esc(name)}</div></div></div><button class="btn danger" id="partnerLogout">Logout</button></div></div><div class="content">${body}</div><div class="tabs">${tabs.map(([id, label]) => `<button class="${state.view === id ? "active" : ""}" data-maint-view="${id}">${label}</button>`).join("")}</div></div>`;
-  document.querySelector("#partnerLogout")?.addEventListener("click", () => { localStorage.clear(); Object.assign(state, { accessToken: "", refreshToken: "", user: null }); renderLogin(); });
+  document.querySelector("#partnerLogout")?.addEventListener("click", () => { storage.clear(); Object.assign(state, { accessToken: "", refreshToken: "", user: null }); renderLogin(); });
   document.querySelectorAll("[data-maint-view]").forEach((b) => b.onclick = () => { if (b.dataset.maintView === "logout") return document.querySelector("#partnerLogout")?.click(); state.view = b.dataset.maintView; render(); });
   document.querySelector("#maintenanceDate")?.addEventListener("change", (e) => { state.maintenanceDate = e.target.value; render(); });
   document.querySelector("#maintenancePrevious")?.addEventListener("click", () => { const d = new Date(state.maintenanceDate || today()); d.setDate(d.getDate() - 1); state.maintenanceDate = d.toISOString().slice(0, 10); render(); });
@@ -632,7 +639,7 @@ function bind() {
   document.querySelector("#dailyReport")?.addEventListener("click", openReport);
   document.querySelector("#addPlant")?.addEventListener("click", openPlantForm);
   if (state.view === "plants") initPlantMap();
-  document.querySelector("#logoutProfile")?.addEventListener("click", () => { localStorage.clear(); Object.assign(state, { accessToken: "", user: null }); renderLogin(); });
+  document.querySelector("#logoutProfile")?.addEventListener("click", () => { storage.clear(); Object.assign(state, { accessToken: "", user: null }); renderLogin(); });
   bindDocumentButtons();
   bindSendButtons();
 }

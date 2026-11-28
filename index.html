@@ -16,5 +16,14 @@
     <div id="appSplash" aria-label="Loading ZenGrid Solar"><img src="/quote-assets/gst-logo.jpeg" alt="Zengrid Solar"><span>ZenGrid Solar</span></div>
     <div id="app"></div>
     <style>#appSplash{position:fixed;inset:0;z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;background:#4c118f;color:#fff;font:800 20px Inter,Arial,sans-serif;transition:opacity .25s ease}#appSplash img{width:150px;height:150px;object-fit:cover;border-radius:24px;background:#fff;box-shadow:0 18px 48px rgba(0,0,0,.24)}#appSplash.hide{opacity:0;pointer-events:none}</style>
+    <script>
+      window.__zgSplashTimer = setTimeout(function () {
+        var splash = document.getElementById("appSplash");
+        if (!splash || splash.classList.contains("hide")) return;
+        splash.classList.add("hide");
+        var app = document.getElementById("app");
+        if (app && !app.children.length) app.innerHTML = '<div style="min-height:100vh;display:grid;place-items:center;padding:24px;font:600 16px Arial;color:#241a30"><div style="text-align:center"><h2>Unable to start ZenGrid</h2><p>Check your connection, then try again.</p><button onclick="location.reload()" style="padding:12px 20px;border:0;border-radius:8px;background:#a8b79a;font-weight:700">Retry</button></div></div>';
+      }, 8000);
+    </script>
   </body>
   </html>
