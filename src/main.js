@@ -4,7 +4,14 @@ import { renderQuoteDocument } from "./quote-template.js";
 const API_BASE = (import.meta.env.VITE_API_BASE_URL || "https://zengridpwa-backend.onrender.com/api").replace(/\/$/, "");
 const apiUrl = (path) => `${API_BASE}/${String(path).replace(/^\/+/, "")}`;
 const app = document.querySelector("#app");
-const hideSplash = () => document.querySelector("#appSplash")?.classList.add("hide");
+let startupGuard;
+const hideSplash = () => {
+  clearTimeout(startupGuard);
+  document.querySelector("#appSplash")?.classList.add("hide");
+};
+const readStoredUser = () => {
+  try { return JSON.parse(localStorage.getItem("zg_user") || "null"); } catch (_error) { localStorage.removeItem("zg_user"); return null; }
+};
 const statuses = ["New Lead", "Contacted", "Interested", "Follow Up", "Not Available", "Not Picking Call", "Rescheduled", "Not Interested", "Won", "Lost"];
 const outcomes = ["Not Available", "Not Picking Call", "Rescheduled", "Follow Up", "Won", "Lost"];
 const floors = ["G", "G+1", "G+2", "G+3", "G+4", "G+5"];
@@ -12,7 +19,7 @@ const floors = ["G", "G+1", "G+2", "G+3", "G+4", "G+5"];
 const state = {
   accessToken: localStorage.getItem("zg_access") || "",
   refreshToken: localStorage.getItem("zg_refresh") || "",
-  user: JSON.parse(localStorage.getItem("zg_user") || "null"),
+  user: readStoredUser(),
   view: "meetings",
   leads: [],
   meetings: [],
@@ -29,6 +36,7 @@ const state = {
   maintenanceHistory: [],
   meetingDate: new Date().toISOString().slice(0, 10),
   leadStatusFilter: "",
+  leadSearch: "",
 };
 let loadSequence = 0;
 
@@ -78,6 +86,12 @@ const docContactActions = (type, row) => {
 };
 
 let pendingRequests = 0;
+startupGuard = setTimeout(() => {
+  hideSplash();
+  if (!document.querySelector("#app")?.children.length) {
+    app.innerHTML = `<div class="login"><div class="loginbox"><h1>ZenGrid Solar</h1><p>We could not start the app. Check your internet connection and try again.</p><button class="btn primary" onclick="location.reload()">Retry</button></div></div>`;
+  }
+}, 10000);
 function setLoading(active) {
   pendingRequests += active ? 1 : -1;
   pendingRequests = Math.max(0, pendingRequests);
@@ -97,8 +111,10 @@ async function api(path, options = {}) {
   const headers = new Headers(options.headers || {});
   headers.set("Content-Type", "application/json");
   if (state.accessToken) headers.set("Authorization", `Bearer ${state.accessToken}`);
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 20000);
   try {
-    let res = await fetch(apiUrl(path), { ...options, headers });
+    let res = await fetch(apiUrl(path), { ...options, headers, signal: options.signal || controller.signal });
     if (res.status === 401 && state.refreshToken && path !== "/auth/refresh") {
       const refreshRes = await fetch(apiUrl("/auth/refresh"), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ refreshToken: state.refreshToken }) });
       const refreshData = await refreshRes.json().catch(() => ({}));
@@ -106,7 +122,7 @@ async function api(path, options = {}) {
         state.accessToken = refreshData.accessToken;
         localStorage.setItem("zg_access", state.accessToken);
         headers.set("Authorization", `Bearer ${state.accessToken}`);
-        res = await fetch(apiUrl(path), { ...options, headers });
+        res = await fetch(apiUrl(path), { ...options, headers, signal: options.signal || controller.signal });
       } else {
         localStorage.removeItem("zg_access"); localStorage.removeItem("zg_refresh"); localStorage.removeItem("zg_user");
         Object.assign(state, { accessToken: "", refreshToken: "", user: null });
@@ -125,7 +141,11 @@ async function api(path, options = {}) {
     }
     if (!res.ok) throw new Error(data.message || "Request failed");
     return data;
+  } catch (error) {
+    if (error.name === "AbortError") throw new Error("The server took too long to respond. Check your connection and retry.");
+    throw error;
   } finally {
+    clearTimeout(timeout);
     setLoading(false);
   }
 }
@@ -157,7 +177,10 @@ async function loadData() {
     }
     const dateQuery = state.view === "meetings" ? `?meetingDate=${encodeURIComponent(state.meetingDate)}` : state.view === "fresh-leads" ? "?unassignedSc=true" : "";
     const meetingQuery = state.view === "meetings" ? `?date=${encodeURIComponent(state.meetingDate)}` : "";
-    const leadJoin = dateQuery ? `${dateQuery}&limit=5000` : "?limit=5000";
+    const leadQuery = new URLSearchParams(dateQuery.replace(/^\?/, ""));
+    leadQuery.set("limit", "5000");
+    if (state.leadSearch.trim()) leadQuery.set("q", state.leadSearch.trim());
+    const leadJoin = `?${leadQuery.toString()}`;
     const meetingJoin = meetingQuery ? `${meetingQuery}&limit=500` : "?limit=500";
     const calls = [api("/auth/me"), api("/activities/summary"), api(`/leads/mine${leadJoin}`), api(`/activities/meetings${meetingJoin}`), api("/followups")];
     if (isSc()) calls.push(api("/plants"));
@@ -333,7 +356,8 @@ function leadsView() {
   const fresh = state.view === "fresh-leads";
   const filteredLeads = state.leads.filter((l) => (!fresh || (l.lrmStatus || "New Lead") === "New Lead") && (!state.leadStatusFilter || l.leadStatus === state.leadStatusFilter));
   const statusFilter = `<label class="field" style="min-width:190px"><span>Filter leads</span><select id="leadStatusFilter"><option value="">All lead statuses</option>${statuses.map((s) => `<option value="${esc(s)}" ${state.leadStatusFilter === s ? "selected" : ""}>${esc(s)}</option>`).join("")}</select></label>`;
-  return layout(fresh ? "Fresh Leads" : "Lead Management", fresh ? "Leads assigned to you/team but not yet assigned to an SC." : isLrm() ? "Your added or assigned leads. Add, edit, assign and schedule." : "Assigned leads only. SC cannot add leads.", `<div class="status-strip">${statusTiles.map(([cls, label, value, hint]) => `<div class="status-tile ${cls}"><b>${value}</b><span>${label}</span><small>${hint}</small></div>`).join("")}</div><div class="card section-card"><div class="section-head"><h3>${fresh ? "Unassigned to SC" : "Lead Pipeline"}</h3><div class="toolbar">${statusFilter}${add}<button class="btn" id="refresh">Refresh</button></div></div><div class="list">${filteredLeads.map((l) => leadCard(l)).join("") || `<div class="empty">No fresh leads found</div>`}</div></div>`);
+  const search = `<label class="field" style="min-width:220px"><span>Search leads</span><input id="leadSearch" value="${esc(state.leadSearch)}" placeholder="Name, phone, ID, email, area..."></label>`;
+  return layout(fresh ? "Fresh Leads" : "Lead Management", fresh ? "Leads assigned to you/team but not yet assigned to an SC." : isLrm() ? "Your added or assigned leads. Add, edit, assign and schedule." : "Assigned leads only. SC cannot add leads.", `<div class="status-strip">${statusTiles.map(([cls, label, value, hint]) => `<div class="status-tile ${cls}"><b>${value}</b><span>${label}</span><small>${hint}</small></div>`).join("")}</div><div class="card section-card"><div class="section-head"><h3>${fresh ? "Unassigned to SC" : "Lead Pipeline"}</h3><div class="toolbar">${search}${statusFilter}${add}<button class="btn" id="refresh">Refresh</button></div></div><div class="list">${filteredLeads.map((l) => leadCard(l)).join("") || `<div class="empty">No fresh leads found</div>`}</div></div>`);
 }
 
 function plantsView() {
@@ -571,6 +595,10 @@ function bindSendButtons() {
 
 function bind() {
   document.querySelector("#refresh")?.addEventListener("click", loadData);
+  document.querySelector("#leadSearch")?.addEventListener("input", (e) => {
+    clearTimeout(window.__zgLeadSearchTimer);
+    window.__zgLeadSearchTimer = setTimeout(() => { state.leadSearch = e.target.value; loadData(); }, 300);
+  });
   document.querySelector("#meetingDateFilter")?.addEventListener("change", (e) => { state.meetingDate = e.target.value || today(); loadData(); });
   document.querySelector("#leadStatusFilter")?.addEventListener("change", (e) => { state.leadStatusFilter = e.target.value || ""; render(); });
   document.querySelector("#todayMeetings")?.addEventListener("click", () => { state.meetingDate = today(); loadData(); });
@@ -619,6 +647,13 @@ function render() {
   (views[state.view] || meetingsView)();
   bind();
 }
+
+window.addEventListener("error", () => {
+  hideSplash();
+});
+window.addEventListener("unhandledrejection", () => {
+  hideSplash();
+});
 
 if (state.accessToken) loadData(); else renderLogin();
 
